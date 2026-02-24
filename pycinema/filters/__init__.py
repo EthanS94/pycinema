@@ -22,6 +22,7 @@ from .ImageView import *
 from .MaskCompositing import *
 # from .MLTFReader import *
 # from .MLTFPredictor import *
+from .NetCDFReader import *
 from .Plot import *
 from .PlotTables import *
 from .PlotLineItem import *
