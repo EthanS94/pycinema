@@ -44,9 +44,11 @@ class InputText(QtWidgets.QWidget):
             port.on('value_set', self.update_callback)
             self.updateWidget()
 
-            if port.name in ['file','path']:
+            if port.name in ['directory','file','path']:
               def get_path():
-                path = QtWidgets.QFileDialog.getExistingDirectory(None,"Select Cinema Database")
+                if port.name == 'directory': path = QtWidgets.QFileDialog.getExistingDirectory(None,"Select Cinema Database")
+                elif port.name == 'file': path = QtWidgets.QFileDialog.getOpenFileName(None)[0]
+                else: path = QtWidgets.QFileDialog.getExistingDirectory(None,"Select Cinema Database")
                 if path: port.set(path)
               select_folder_btn = self.edit.addAction(Icons.toQIcon(Icons.icon_directory), QtWidgets.QLineEdit.TrailingPosition);
               select_folder_btn.triggered.connect(get_path)

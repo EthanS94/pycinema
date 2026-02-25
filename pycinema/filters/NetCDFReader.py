@@ -1,3 +1,4 @@
+import cftime
 from pycinema import Filter
 import logging as log
 from os.path import exists
@@ -29,15 +30,12 @@ class NetCDFReader(Filter):
             self.outputs.table.set([[]])
             return 0
 
-        try:
-            ds = xr.open_dataset(ncPath)
-            df = ds.to_dataframe()
-            table_2d = df.values.tolist()
-        except:
-            log.error("Unable to open file: '" + ncPath + "'")
-            self.outputs.table.set([[]])
-            return 0
+        ds = xr.open_dataset(ncPath)
+        if 'time' in ds.coords._names:
+            reference_time = str(ds.coords['time'].data[0].strftime("%Y-%m-%d %H:%M:%S"))
+            numeric_date = cftime.date2num(ds.coords['time'].data, "days since {start}".format(start=reference_time))
+            table.append(numeric_date.tolist())
 
-        self.outputs.table.set(table_2d)
+        self.outputs.table.set(table)
 
         return 1
