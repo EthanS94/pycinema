@@ -135,7 +135,7 @@ class TableView(Filter):
             selection_mode = QtWidgets.QAbstractItemView.NoSelection
           else:
             selection_indices = [i for i in range(0,len(table)) if table[i][id_column_idx] in selection]
-            output_table = [table[i] for i in [0]+selection_indices]
+            output_table = [table[0][:]] + [table[i][:] for i in selection_indices]
             selection_indices = [i-1 for i in selection_indices]
 
         # disable selection if no id column present
