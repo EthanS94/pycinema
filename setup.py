@@ -43,7 +43,8 @@ setuptools.setup(
         "trame-vuetify",
         "trame-plotly",
         "pandas",
-        "pyyaml"
+        "pyyaml",
+        "xarray"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
