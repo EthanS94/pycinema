@@ -44,7 +44,8 @@ setuptools.setup(
         "trame-plotly",
         "pandas",
         "pyyaml",
-        "xarray"
+        "xarray",
+        "cftime"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
