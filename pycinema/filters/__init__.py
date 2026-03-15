@@ -1,3 +1,4 @@
+from .Barrier import *
 from .Calculator import *
 from .CinemaDatabaseReader import *
 from .CinemaDatabaseWriter import *
@@ -7,6 +8,7 @@ from .CSVReader import *
 from .TableEditor import *
 from .TableQuery import *
 from .DepthCompositing import *
+from .DirSchema import *
 from .DSIReader import *
 from .ExportTableToDatabase import *
 from .ImageAnnotation import *
@@ -43,8 +45,12 @@ from .TableWriter import *
 from .TableView import *
 from .TextEditor import *
 from .TextFileReader import *
+from .TimeSpan import *
+from .TimeSpangpt import *
 from .ParametersView import *
 from .ParallelCoordinates import *
 from .InspectorView import *
 from .ValueSource import *
 from .YamlFileReader import *
+from .ZarrImageReader import *
+from .ZarrTimeSpan import *

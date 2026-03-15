@@ -69,7 +69,30 @@ class ImageAnnotation(Filter):
                     textColor = (0,0,0)
                 break
 
-        font = self.__get_font(self.inputs.size.get())
+        # --- Dynamically scale font size based on smallest image dimension ---
+
+        base_size = self.inputs.size.get()
+
+        # Compute smallest width/height across all rgba images
+        min_dim = None
+        for image in images:
+            if 'rgba' in image.channels:
+                h, w = image.channels['rgba'].shape[:2]
+                dim = min(h, w)
+                if min_dim is None or dim < min_dim:
+                    min_dim = dim
+
+        # Fallback if no rgba images
+        if min_dim is None:
+            min_dim = base_size
+
+        # Scale font relative to a reference size (e.g., 512px image)
+        reference_dim = 512.0
+        scale_factor = min_dim / reference_dim
+
+        scaled_size = max(8, int(base_size * scale_factor))
+
+        font = self.__get_font(scaled_size)
 
         ignore = self.inputs.ignore.get()
 

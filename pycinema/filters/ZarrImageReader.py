@@ -3,21 +3,20 @@ from pycinema import Filter, Image
 import cftime
 import datetime as dt
 import numpy as np
-import sys
+import pandas as pd
 import re
+import sys
 import xarray as xr
 
 from pycinema import getTableExtent
 
-class NCImageReader(Filter):
+class ZarrImageReader(Filter):
     def __init__(self):
-        self.cache = {}
         super().__init__(
             inputs={
                 'table': [[]],
                 'start_date': '',
-                'end_date': '',
-                'cache': True
+                'end_date': ''
             },
             outputs={
                 'images': []
@@ -29,18 +28,17 @@ class NCImageReader(Filter):
         table = self.inputs.table.get()
         start_date = self.inputs.start_date.get()
         end_date = self.inputs.end_date.get()
-        cache = self.inputs.cache.get()
         tableExtent = getTableExtent(table)
         if tableExtent[0]<1 or tableExtent[1]<1:
             return self.outputs.images.set([])
 
-        # get .nc globs from table
+        # get .zarr globs from table
         file_col = next((i for i, h in enumerate(table[0]) if h == "file"), None)
         if file_col is None:
             self.outputs.images.set([])
             return 1
 
-        nc_globs = [row[file_col] for row in table[1:]]
+        zarr_globs = [row[file_col] for row in table[1:]]
 
         # get rolling_average from table
         # FIXME: assume only one rolling_average is chosen at a time
@@ -57,41 +55,49 @@ class NCImageReader(Filter):
         images = []
         dates = [start_date, end_date]
 
-        for g in nc_globs:
-            image, self.cache = nc_to_images(g, dates, rolling_average, cache, self.cache)
-            images = images + image
+        for g in zarr_globs:
+            image = zarr_to_images(g, dates, rolling_average)
+            if image != None:
+                images = images + image
 
         self.outputs.images.set(images)
 
 
-def nc_to_images(nc_glob, dates=None, rolling_average=int(1), cache_bool=False, cache={}):
+def zarr_to_images(zarr_glob, dates=None, rolling_average=int(1)):
     """
     Returns: [{"PyCinemaImage": {"meta": {...}, "channels": {var: (lat,lon) float32}}}, ...]
     """
 
-    start_date = cftime.DatetimeNoLeap(dates[0].year, dates[0].month, dates[0].day)
-    end_date = cftime.DatetimeNoLeap(dates[1].year, dates[1].month, dates[1].day)
+    ds = xr.open_dataset(zarr_glob, decode_times=True, engine='zarr')
+    # Normalize T12:00:0000's to T00:00:0000's so selection works better
+    ds = ds.assign_coords(time=ds.time.dt.floor("D"))
 
-    # Need to handle cases where nc is split into multiple files
-    pattern = re.compile(r'\*')
+    t0 = ds.time[0].item()
 
-    if cache_bool and nc_glob in cache.keys():
-        ds = cache[nc_glob]
+    cftime_bool = False
+    if isinstance(t0, cftime.DatetimeNoLeap):
+        cftime_bool = True
+        start_date = cftime.DatetimeNoLeap(dates[0].year, dates[0].month, dates[0].day)
+        end_date = cftime.DatetimeNoLeap(dates[1].year, dates[1].month, dates[1].day)
+    elif np.issubdtype(ds.time.dtype, np.datetime64):
+        start_date = np.datetime64(dates[0])
+        end_date = np.datetime64(dates[1])
     else:
-        if pattern.search(nc_glob):
-            ds = xr.open_mfdataset(nc_glob, decode_times=True)
-        else:
-            ds = xr.open_dataset(nc_glob, decode_times=True)
-
-        if cache_bool:
-            cache[nc_glob] = ds
-
-    t0 = ds.time.min().item()
+        print("Unrecognized time format: ")
+        print(ds.time.dtype)
+        return None
 
     # Need to slice smartly if there is a rolling average > 1
     # Also need to move slice forward if trying to pick only the first date with a rolling average
     #   because first date - 3 will cause issues
     if rolling_average > 1:
+
+        if not cftime_bool:
+            start_date = cftime.DatetimeNoLeap(dates[0].year, dates[0].month, dates[0].day)
+            end_date = cftime.DatetimeNoLeap(dates[1].year, dates[1].month, dates[1].day)
+            t0 = pd.Timestamp(ds.time.values[0])
+            t0 = cftime.DatetimeNoLeap(t0.year, t0.month, t0.day)
+
         # how many whole days we can actually go backwards
         back_avail = max(0, (start_date - t0).days)
         missing = max(0, rolling_average - back_avail - 1)
@@ -103,10 +109,22 @@ def nc_to_images(nc_glob, dates=None, rolling_average=int(1), cache_bool=False, 
             slice_start = start_date - dt.timedelta(days=rolling_average-1) if start_date == end_date else start_date
             slice_end = end_date
 
+        slice_start = f"{slice_start.year:04d}-{slice_start.month:02d}-{slice_start.day:02d}"
+        slice_end = f"{slice_end.year:04d}-{slice_end.month:02d}-{slice_end.day:02d}"
+
         ds_down = ds.sel(time=slice(slice_start, slice_end))
     else:
-        ds_down = ds.sel(time=slice(start_date, end_date))
-
+        if not cftime_bool:
+            try:
+                ds_down = ds.sel(time=[start_date])
+            except:
+                print(f"Could not select time, {start_date}, from xarray dataset below:")
+                print(ds)
+                return None
+        else:
+            start_date = f"{start_date.year:04d}-{start_date.month:02d}-{start_date.day:02d}"
+            end_date = f"{end_date.year:04d}-{end_date.month:02d}-{end_date.day:02d}"
+            ds_down = ds.sel(time=slice(start_date, end_date))
 
     lat = "lat" if "lat" in ds.dims else "latitude"
     lon = "lon" if "lon" in ds.dims else "longitude"
@@ -133,7 +151,11 @@ def nc_to_images(nc_glob, dates=None, rolling_average=int(1), cache_bool=False, 
     ) if tdim else None
 
     if rolling_average > 1:
-        ds_down['pr'] = ds_down['pr'].rolling(time=rolling_average, center=False).sum(skipna=True)
+        try:
+            ds_down['pr'] = ds_down['pr'].rolling(time=rolling_average, center=False).sum(skipna=True)
+        except:
+            print(ds_down)
+            return None
 
     for idx, ti in enumerate(tids):
         image = Image()
@@ -144,19 +166,11 @@ def nc_to_images(nc_glob, dates=None, rolling_average=int(1), cache_bool=False, 
 
         for name, da in ds_down.data_vars.items():
             if lat in da.dims and lon in da.dims:
-
                 if tdim and tdim in da.dims:
-
                     x = da.isel({tdim: ti})
 
                 else:
                     x = da
-
-                # Average over non-spatial dimensions
-                #x = x.mean(
-                #    [d for d in x.dims if d not in (lat, lon)],
-                #    skipna=True
-                #)
 
                 chans[name] = x.transpose(lat, lon).values.astype(np.float32)
 
@@ -169,17 +183,16 @@ def nc_to_images(nc_glob, dates=None, rolling_average=int(1), cache_bool=False, 
                 time_str = start_time if start_time == end_time else f"{start_time} to {end_time}"
             else:
                 time_str = time_strings[idx]
-            print(time_str)
             meta = {
-                "FILE": nc_glob,
+                "FILE": zarr_glob,
                 "time_index": ti,
                 "time_range": time_str,
             }
         else:
-            meta = {"FILE": nc_path}
+            meta = {"FILE": zarr_glob}
 
         image.meta = meta
         image.channels = chans
         out.append(image)
 
-    return out, cache
+    return out
