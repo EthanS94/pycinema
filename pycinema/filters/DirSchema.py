@@ -93,6 +93,4 @@ def subdir_table(root):
     # pad rows so all match header length
     table = [r[:-1] + [""] * (max_parts - (len(r) - 1)) + [r[-1]] for r in rows]
 
-    print(table)
-
     return headers, table

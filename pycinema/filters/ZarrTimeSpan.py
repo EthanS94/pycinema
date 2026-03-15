@@ -292,7 +292,11 @@ class ZarrTimeSpan(Filter):
     just_year_pattern = re.compile(r'[0-9]+\.zarr$')
 
     for g in zarr_globs:
-        ds = xr.open_zarr(g, consolidated=True)[["time"]]
+        try:
+            ds = xr.open_zarr(g, consolidated=None)[["time"]]
+        except:
+            print(f"Error loading {g} to inspect time range. Skipping.")
+            continue
         s = self.to_cftime(ds.time.isel(time=0).values)
         s = datetime(s.year, s.month, s.day).date()
         e = self.to_cftime(ds.time.isel(time=-1).values)
