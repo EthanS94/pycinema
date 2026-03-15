@@ -79,18 +79,37 @@ def subdir_table(root):
             and pattern.match(p.name)
             and is_zarr_file(p)):
 
-            parts = re.split(r'[_]', p.name)[0:2]
+            # Historical Observations
+            if "obs_" in str(p):
+                model_name = re.split(r'_[0-9]', p.name)[0]
+                hist_type = 'observational'
+                future_type = 'N/A'
+
+            # Historical Models
+            elif "historical" in str(p):
+                model_name = re.split(r'_historical', p.name)[0]
+                hist_type = 'model'
+                future_type = 'N/A'
+
+            # Future Models
+            else:
+                if 'ssp245' in p.name:
+                    model_name = re.split(r'_ssp245', p.name)[0]
+                    hist_type = 'N/A'
+                    future_type = 'ssp245'
+                elif 'ssp370' in p.name:
+                    model_name = re.split(r'_ssp370', p.name)[0]
+                    hist_type = 'N/A'
+                    future_type = 'ssp370'
+
+            parts = [model_name, hist_type, future_type]
             zarr_string = str(p)
 
             # Include 1 day, 3 day, 5 day as a column
             for day in ['1 day','3 day','5 day']:
-                rows.append(parts + [day] + [f"{zarr_string}"] + [idx])
+                rows.append(parts + [day] + [zarr_string] + [idx])
                 idx += 1
 
-    max_parts = max((len(r) - 1 for r in rows), default=0)
-    headers = ["Model", "Scenario", "1/3/5 Day Accumulation", "file", "id"]
+    headers = ["Model Name", "Historical", "Future", "Accumulation", "file", "id"]
 
-    # pad rows so all match header length
-    table = [r[:-1] + [""] * (max_parts - (len(r) - 1)) + [r[-1]] for r in rows]
-
-    return headers, table
+    return headers, rows
