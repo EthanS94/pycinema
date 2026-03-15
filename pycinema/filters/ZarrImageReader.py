@@ -38,27 +38,29 @@ class ZarrImageReader(Filter):
             self.outputs.images.set([])
             return 1
 
-        zarr_globs = [row[file_col] for row in table[1:]]
+        zarr_globs = list(set([row[file_col] for row in table[1:]]))
 
         # get rolling_average from table
         # FIXME: assume only one rolling_average is chosen at a time
         #        need to handle if a user selects multiple rolling_averages
-        ra_col = next((i for i, h in enumerate(table[0]) if h == "1/3/5 Day Accumulation"), None)
+        ra_col = next((i for i, h in enumerate(table[0]) if h == "Accumulation"), None)
         if ra_col is None:
             self.outputs.images.set([])
             return 1
 
         # rolling averages come in as strings ('1 day')
         # need to handle that
-        rolling_average = int([row[ra_col] for row in table[1:]][0].split(' ')[0])
+        rolling_averages = list(set([row[ra_col] for row in table[1:]]))
+        rolling_averages = sorted([int(ra.split(' ')[0]) for ra in rolling_averages])
 
         images = []
         dates = [start_date, end_date]
 
         for g in zarr_globs:
-            image = zarr_to_images(g, dates, rolling_average)
-            if image != None:
-                images = images + image
+            for ra in rolling_averages:
+                image = zarr_to_images(g, dates, ra)
+                if image != None:
+                    images = images + image
 
         self.outputs.images.set(images)
 
