@@ -10,6 +10,7 @@ from .TableQuery import *
 from .DepthCompositing import *
 from .DirSchema import *
 from .DSIReader import *
+from .DSImageReader import *
 from .ExportTableToDatabase import *
 from .ImageAnnotation import *
 from .ImageBorder import *
@@ -46,7 +47,6 @@ from .TableView import *
 from .TextEditor import *
 from .TextFileReader import *
 from .TimeSpan import *
-# from .TimeSpangpt import *
 from .ParametersView import *
 from .ParallelCoordinates import *
 from .InspectorView import *
@@ -56,3 +56,4 @@ from .ZarrImageReader import *
 from .ZarrTimeSpan import *
 from .DataArrayFigure import *
 from .ZarrDataReader import *
+from .ZarrToDS import *
