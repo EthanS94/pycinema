@@ -11,6 +11,7 @@ from .DepthCompositing import *
 from .DirSchema import *
 from .DSIReader import *
 from .DSImageReader import *
+from .DSTimeSpan import *
 from .ExportTableToDatabase import *
 from .ImageAnnotation import *
 from .ImageBorder import *
@@ -42,6 +43,7 @@ from .ShaderSSAO import *
 from .ShaderLineAO import *
 from .ShaderPointAO import *
 from .SqliteDatabaseReader import *
+from .StippleCompare import *
 from .TableWriter import *
 from .TableView import *
 from .TextEditor import *

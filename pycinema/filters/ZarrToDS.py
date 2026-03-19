@@ -10,6 +10,36 @@ import xarray as xr
 
 from pycinema import getTableExtent
 
+ds_cached = None
+
+def read_zarr_auto(path, max_points=2_000_000, **open_kwargs):
+    ds = xr.open_zarr(
+        path,
+        chunks="auto",
+        create_default_indexes=False,
+        **open_kwargs,
+    )
+
+    lat_dim = "lat" if "lat" in ds.dims else None
+    lon_dim = "lon" if "lon" in ds.dims else None
+
+    if lat_dim and lon_dim:
+        nlat = ds.sizes[lat_dim]
+        nlon = ds.sizes[lon_dim]
+
+        step = 1
+        while (nlat // step) * (nlon // step) > max_points:
+            step += 1
+
+        ds = ds.isel(
+            **{
+                lat_dim: slice(None, None, step),
+                lon_dim: slice(None, None, step),
+            }
+        )
+
+    return ds
+
 class ZarrToDS(Filter):
     def __init__(self):
         super().__init__(
@@ -43,11 +73,20 @@ class ZarrToDS(Filter):
             return 1
 
         ds_list = [['xr_dataset']]
+        zarr_file = ''
         for row in table[1:]:
-            zarr_file = row[file_col]
-            rolling_c = row[rc_col]
-            rolling_c = int(rolling_c.split(' ')[0])
-            ds = zarr_to_ds(zarr_file, rolling_c)
+            # if zarr_file was just read, re-use the ds instead of reloading again
+            if zarr_file == row[file_col]:
+                rolling_c = row[rc_col]
+                print(f'reading {zarr_file} at {rolling_c} accumulation...')
+                rolling_c = int(rolling_c.split(' ')[0])
+                ds = zarr_to_ds(zarr_file, rolling_c, reuse=True)
+            else:
+                zarr_file = row[file_col]
+                rolling_c = row[rc_col]
+                print(f'reading {zarr_file} at {rolling_c} accumulation...')
+                rolling_c = int(rolling_c.split(' ')[0])
+                ds = zarr_to_ds(zarr_file, rolling_c, reuse=False)
             if ds != None:
                 ds_list.append([ds])
             else:
@@ -58,25 +97,36 @@ class ZarrToDS(Filter):
         self.outputs.table.set(table)
 
 
-def zarr_to_ds(zarr_path, rolling_c=int(1)):
+def zarr_to_ds(zarr_path, rolling_c=int(1), reuse=False):
     """
     Returns: xarray dataset by reading in zarr_path
     """
+    global ds_cached
 
-    try:
-        ds = xr.open_dataset(zarr_path, decode_times=True, engine='zarr')
-        # Normalize T12:00:0000's to T00:00:0000's so selection works better
-        ds = ds.assign_coords(time=ds.time.dt.floor("D"))
-    except Exception as e:
-        print(e)
-        return None
+    if reuse:
+        ds = ds_cached
+    else:
+        try:
+            ds = read_zarr_auto(zarr_path)
+            #ds = xr.open_dataset(zarr_path, decode_times=True, engine='zarr')
+            # Normalize T12:00:0000's to T00:00:0000's so selection works better
+            ds = ds.assign_coords(time=ds.time.dt.floor("D"))
+        except Exception as e:
+            print(e)
+            ds_cached = None
+            return None
 
     if rolling_c > 1:
         try:
-            ds['pr'] = ds['pr'].rolling(time=rolling_c, center=False).sum(skipna=True)
+            ds_rolled = ds.assign(
+                pr=ds['pr'].rolling(time=rolling_c, center=False).sum(skipna=True)
+            )
+            return ds_rolled
         except Exception as e:
             print(e)
+            ds_cached = None
             return None
 
+    ds_cached = ds
     return ds
 
