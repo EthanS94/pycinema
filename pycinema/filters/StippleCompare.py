@@ -22,8 +22,6 @@ class StippleCompare(Filter):
         super().__init__(
             inputs={
                 'table': [[]],
-                'start_date': '',
-                'end_date': ''
             },
             outputs={
                 'images': {}
@@ -33,15 +31,6 @@ class StippleCompare(Filter):
     def _update(self):
 
         table = self.inputs.table.get()
-        start_date = self.inputs.start_date.get()
-        end_date = self.inputs.end_date.get()
-
-        # Needs an input
-        quantile = 0.95
-
-        # Doesn't need an input
-        stipple_size = 10
-        stipple_spacing = 2
 
         tableExtent = getTableExtent(table)
         if tableExtent[0]<1 or tableExtent[1]<1:
@@ -74,35 +63,24 @@ class StippleCompare(Filter):
             else:
                 pass
 
-        # defs that may be useful
-        #quantile(ds, quantile)
-        #matplotlib_plot_to_image(fig)
-        #stipple_compare(model_quants, obs_quants)
+        quantile_value = 0.95
 
         # Just compare two historical models for now to figure out implementation
-        quants_ds = []
-        for row in historical_models[:2]:
-            quants_ds.append(row[ds_col].quantile(0.95, dim="time").compute())
-        quants_ds = xr.concat(quants_ds, dim="model")
-        print('model quantiles calculated')
+        row = historical_models[0]
+        quants_ds = row[ds_col].quantile(quantile_value, dim="time").compute()
 
-        obs_quants = []
-        for row in historical_models[2:]:
-            obs_quants.append(row[ds_col].quantile(0.95, dim="time").compute())
-        obs_quants = xr.concat(obs_quants, dim="model")
+        row = observations[0]
+        obs_quants = row[ds_col].quantile(quantile_value, dim="time").compute()
         obs_quants_min = obs_quants.min(dim="model")
         obs_quants_max = obs_quants.max(dim="model")
-        print('observational quantiles calculated')
 
         mask = get_stipple_mask(quants_ds, obs_quants_min, obs_quants_max)
-        print('mask created')
         lons = mask.lon.values
         lats = mask.lat.values
         lon_grid, lat_grid = np.meshgrid(lons, lats)
 
-        f, axes = plt.subplots(2, 1, figsize=(30, 40), facecolor='w')
+        f, axes = plt.subplots(1, 1, figsize=(30, 20), facecolor='w')
         cmap = "BuPu"
-        quantile = 0.95
         robust = True
 
         fz = 26
@@ -110,40 +88,34 @@ class StippleCompare(Filter):
         stipple_size = 30
         stipple_spacing = 2
 
-        for index, model in enumerate(quants_ds.model.values):
-            print(index)
-            print(model)
-            #quants_ds["one_day_pr"].rename(cb_labels[0]).sel(model=model, quantile=quantile).plot.imshow(ax=axes[index,0], levels=one_day_levels, transform=transform, cmap=cmap, robust=robust)
-            quants_ds['pr'].sel(model=model).plot.imshow(ax=axes[index], robust=robust, cmap=cmap)
-            print(f"cmap plot {index} done")
-            model_mask = get_stipple_mask(quants_ds.sel(model=model), obs_quants_min, obs_quants_max)
+        quants_ds['pr'].plot.imshow(ax=axes, robust=robust, cmap=cmap)
+        model_mask = get_stipple_mask(quants_ds, obs_quants_min, obs_quants_max)
 
-            t0 = time.time()
-            print(model_mask["pr"])
-            m = model_mask["pr"].isel(
-                lat=slice(None, None, stipple_spacing),
-                lon=slice(None, None, stipple_spacing)
-            ).values
-            print("mask:", time.time() - t0)
-            
-            t0 = time.time()
-            lon_sub = lon_grid[::stipple_spacing, ::stipple_spacing]
-            print("lon_sub:", time.time() - t0)
-            
-            t0 = time.time()
-            stipple_lons = lon_sub[m]
-            print("stipple_lons:", time.time() - t0)
-            
-            t0 = time.time()
-            lat_sub = lat_grid[::stipple_spacing, ::stipple_spacing]
-            print("lat_sub:", time.time() - t0)
-            
-            t0 = time.time()
-            stipple_lats = lat_sub[m]
-            print("stipple_lats:", time.time() - t0)
+        m = model_mask["pr"].isel(
+            lat=slice(None, None, stipple_spacing),
+            lon=slice(None, None, stipple_spacing)
+        ).values
 
-            axes[index].scatter(stipple_lons, stipple_lats, s=stipple_size, color="black", alpha=1, marker="o")
+        lon_sub = lon_grid[::stipple_spacing, ::stipple_spacing]
+        stipple_lons = lon_sub[m]
 
-        f.savefig("figure.png")
+        lat_sub = lat_grid[::stipple_spacing, ::stipple_spacing]
+        stipple_lats = lat_sub[m]
 
-        self.outputs.images.set([])
+        axes.scatter(stipple_lons, stipple_lats, s=stipple_size, color="black", alpha=1, marker="o")
+
+        f.canvas.draw()
+
+        # Get width and height
+        w, h = f.canvas.get_width_height()
+
+        # Convert to numpy array (RGBA)
+        img = np.frombuffer(f.canvas.buffer_rgba(), dtype=np.uint8)
+        img = img.reshape((h, w, 4))
+
+        image = Image()
+        chans = {}
+        chans['rgba'] = img
+        image.channels = chans
+
+        self.outputs.images.set([image])

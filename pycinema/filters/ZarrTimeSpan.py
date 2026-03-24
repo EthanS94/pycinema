@@ -28,7 +28,7 @@ class ZarrTimeSpan(Filter):
     Filter.__init__(
       self,
       inputs={'table': [[]], 'ignore': ['^id'], 'state': {}},
-      outputs={'start_date': '', 'end_date': ''}
+      outputs={'table': [[]]}
     )
 
   # -------- date/int helpers --------
@@ -273,15 +273,13 @@ class ZarrTimeSpan(Filter):
     table = self.inputs.table.get()
     tableExtent = getTableExtent(table)
     if tableExtent[0] < 1 or tableExtent[1] < 1:
-      self.outputs.start_date.set('')
-      self.outputs.end_date.set('')
+      self.outputs.table.set([])
       return 0
 
     # find "file" column
     file_col = next((i for i, h in enumerate(table[0]) if h == "file"), None)
     if file_col is None:
-      self.outputs.start_date.set('')
-      self.outputs.end_date.set('')
+      self.outputs.table.set([])
       self.emitter.s_update.emit()
       return 1
 
@@ -301,12 +299,11 @@ class ZarrTimeSpan(Filter):
         s = datetime(s.year, s.month, s.day).date()
         e = self.to_cftime(ds.time.isel(time=-1).values)
         e = datetime(e.year, e.month, e.day).date()
-        start_date = s if start_date is None else min(start_date, s)
-        end_date = e if end_date is None else max(end_date, e)
+        start_date = s if start_date is None else max(start_date, s)
+        end_date = e if end_date is None else min(end_date, e)
 
     if start_date is None or end_date is None:
-      self.outputs.start_date.set('')
-      self.outputs.end_date.set('')
+      self.outputs.table.set(table)
       self.emitter.s_update.emit()
       return 1
 
@@ -314,8 +311,11 @@ class ZarrTimeSpan(Filter):
     self._ensure_date_state(start_date, end_date, reset_on_change=True)
 
     output_s, output_e = self.get_selected_dates()
-    self.outputs.start_date.set(output_s)
-    self.outputs.end_date.set(output_e)
+    dates = [output_s, output_e]
+    headers = table[0] + ["Time Span"]
+    output_table = [input_row + [dates] for input_row in table[1:]]
+    output_table.insert(0, headers)
+    self.outputs.table.set(output_table)
 
     self.emitter.s_update.emit()
     return 1

@@ -183,19 +183,30 @@ try:
                     self.filter.inputs.compose.set(None)
             else:
                 self.bar.hide()
-                self.updateSelection(event.modifiers() == QtCore.Qt.ShiftModifier)
+                mods = QtWidgets.QApplication.keyboardModifiers()
+                grow = bool(mods & (QtCore.Qt.ShiftModifier | QtCore.Qt.ControlModifier))
+                self.updateSelection(grow)
             self.mouse_state = -1
 
         def updateSelection(self, grow=False):
-            if grow:
-                parameters = self.filter.computeParameterValues()
-            else:
-                parameters = {}
             indices = sorted([self.selection_idx0, self.selection_idx1])
-            parameters[self.parameter] = {
-                self.values[s] for s in range(indices[0], indices[1] + 1)
+            new_values = {self.values[s] for s in range(indices[0], indices[1] + 1)}
+
+            if not grow:
+                parameters = {self.parameter: set(new_values)}
+            else:
+                parameters = self.filter.computeParameterValues()
+
+                if self.parameter in parameters:
+                    parameters[self.parameter] |= new_values
+                else:
+                    parameters[self.parameter] = set(new_values)
+
+            self.filter.axis_selections = {
+                p: set(vs) for p, vs in parameters.items() if len(vs) > 0
             }
-            sql = "SELECT `id` " + self.filter.computeSQL(parameters)
+
+            sql = "SELECT `id` " + self.filter.computeSQL(self.filter.axis_selections)
             table = queryData(self.filter.db, sql)
             self.filter.inputs.selection.set(
                 [table[i][0] for i in range(1, len(table))],
@@ -485,6 +496,7 @@ class ParallelCoordinates(Filter):
         self.widgets = []
 
         self.db = None
+        self.axis_selections = {}
 
         self.inputTimes = [-1, -1]
         Filter.__init__(
@@ -503,33 +515,24 @@ class ParallelCoordinates(Filter):
         )
 
     def computeParameterValues(self):
-        table = self.inputs.table.get()
-
-        id_column_idx = table[0].index("id")
-        selection = self.inputs.selection.get()
-        selected_rows = [
-            i for i in range(1, len(table)) if table[i][id_column_idx] in selection
-        ]
-
-        parameters = {}
-        for p in self.model:
-            ci = table[0].index(p)
-            values = {table[s][ci] for s in selected_rows}
-            if len(values) > 0:
-                parameters[p] = values
-        return parameters
+        return {
+            p: set(vs) for p, vs in self.axis_selections.items() if len(vs) > 0
+        }
 
     def computeSQL(self, parameters):
-        sql = "FROM `input` WHERE "
-        for p in parameters:
-            sql += (
+        if not parameters:
+            return "FROM `input`"
+
+        clauses = []
+        for p, vals in parameters.items():
+            clauses.append(
                 "`"
                 + p
                 + '` IN ("'
-                + '","'.join([str(v) for v in parameters[p]])
-                + '") AND  '
+                + '","'.join([str(v) for v in vals])
+                + '")'
             )
-        return sql[:-6]
+        return "FROM `input` WHERE " + " AND ".join(clauses)
 
     def generateWidgets(self):
         widget = _ParallelCoordinates(self)
@@ -563,6 +566,7 @@ class ParallelCoordinates(Filter):
                 new_model[parameter] = computeValues(table, i)
 
             self.model = new_model
+            self.axis_selections = {}
             for w in self.widgets:
                 w.updatePlot()
 

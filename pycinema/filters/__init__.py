@@ -12,6 +12,7 @@ from .DirSchema import *
 from .DSIReader import *
 from .DSImageReader import *
 from .DSTimeSpan import *
+from .DSTimeSample import *
 from .ExportTableToDatabase import *
 from .ImageAnnotation import *
 from .ImageBorder import *

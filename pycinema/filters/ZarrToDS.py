@@ -47,7 +47,7 @@ class ZarrToDS(Filter):
                 'table': [[]],
             },
             outputs={
-                'table': []
+                'table': [[]]
             }
         )
 
