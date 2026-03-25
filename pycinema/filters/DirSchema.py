@@ -101,6 +101,14 @@ def subdir_table(root):
                     model_name = re.split(r'_ssp370', p.name)[0]
                     hist_type = 'N/A'
                     future_type = 'ssp370'
+                elif 'ssp585' in p.name:
+                    model_name = re.split(r'_ssp585', p.name)[0]
+                    hist_type = 'N/A'
+                    future_type = 'ssp585'
+                elif 'future-scenario' in p.name:
+                    model_name = re.split(r'_future-scenario', p.name)[0]
+                    hist_type = 'N/A'
+                    future_type = 'future-scenario'
 
             parts = [model_name, hist_type, future_type]
             zarr_string = str(p)

@@ -107,8 +107,12 @@ def zarr_to_ds(zarr_path, rolling_c=int(1), reuse=False):
         ds = ds_cached
     else:
         try:
-            ds = read_zarr_auto(zarr_path)
-            #ds = xr.open_dataset(zarr_path, decode_times=True, engine='zarr')
+            ds = xr.open_zarr(zarr_path, decode_times=True)
+            # Remove history var if it exists
+            ds = ds.drop_vars("history", errors="ignore")
+            # Select scenario if it exists
+            if "scenario" in ds.dims:
+                ds = ds.isel(scenario=0)
             # Normalize T12:00:0000's to T00:00:0000's so selection works better
             ds = ds.assign_coords(time=ds.time.dt.floor("D"))
         except Exception as e:

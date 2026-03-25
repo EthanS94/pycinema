@@ -91,10 +91,18 @@ class StippleCompare(Filter):
 
         # Organize ds into 1, 3, and 5 day accumulations
         quants_ds_dict = {1: [], 3: [], 5: []}
+        model_names = []
         for row in historical_models:
             rolling_c = row[rc_col]
             rolling_c = int(rolling_c.split(' ')[0])
-            quants_ds_dict[rolling_c].append(row[ds_col].quantile(quantile_value, dim="time").compute())
+            # Need to separate models if their are multiple in the dataset
+            if "model" in row[ds_col].dims:
+                for model in row[ds_col].model.values:
+                    quants_ds_dict[rolling_c].append(row[ds_col].sel(model=model).quantile(quantile_value, dim="time").compute())
+                    model_names.append(model)
+            else:
+                quants_ds_dict[rolling_c].append(row[ds_col].quantile(quantile_value, dim="time").compute())
+
 
         # Organize ds into 1, 3, and 5 day accumulations
         obs_ds_dict = {1: None, 3: None, 5: None}
@@ -143,6 +151,8 @@ class StippleCompare(Filter):
 
         rc_count = 0
         for rc, models in quants_ds_dict.items():
+            if not models:
+                continue
             model_count = 0
             for model in models:
                 model['pr'].plot.imshow(ax=axes[model_count, rc_count], robust=robust, cmap=cmap, transform=transform)
@@ -161,7 +171,11 @@ class StippleCompare(Filter):
 
                 axes[model_count, rc_count].scatter(stipple_lons, stipple_lats, s=stipple_size, color="black", alpha=1, marker="o", transform=transform)
 
-                axes[0, 0].text(-0.2, 0.1 + (-1.2*model_count), model.attrs.get("title"), rotation=90, transform=axes[0, 0].transAxes, fontsize=22)
+                if model_names:
+                    axes[0, 0].text(-0.2, 0.1 + (-1.2*model_count), model_names[model_count], rotation=90, transform=axes[0, 0].transAxes, fontsize=22)
+                else:
+                    axes[0, 0].text(-0.2, 0.1 + (-1.2*model_count), model.attrs.get("title"), rotation=90, transform=axes[0, 0].transAxes, fontsize=22)
+
 
                 axes[model_count, rc_count].coastlines()
 
