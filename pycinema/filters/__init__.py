@@ -54,3 +54,5 @@ from .ValueSource import *
 from .YamlFileReader import *
 from .ZarrImageReader import *
 from .ZarrTimeSpan import *
+from .DataArrayFigure import *
+from .ZarrDataReader import *
