@@ -46,7 +46,8 @@ setuptools.setup(
         "netcdf4",
         "dask",
         "distributed",
-        "zarr"
+        "zarr",
+        "cartopy"
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
