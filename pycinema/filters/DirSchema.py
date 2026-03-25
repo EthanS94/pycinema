@@ -52,7 +52,7 @@ def subdir_table(root):
 
     # FIXME: probably better to just hard code this to exactly what we want rather then trying to figure it out
     pattern = re.compile(r'^[^_]+([_][^_]+){1,}$')  # at least 2 segments separated by _ or -
-    for p in root.rglob("*"):
+    for p in root.glob("*"):
 
         if (p.is_dir()
             and pattern.match(p.name)

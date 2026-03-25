@@ -19,8 +19,6 @@ ImageView_0 = pycinema.filters.ImageView()
 # properties
 ParallelCoordinates_0.inputs.table.set(DirSchema_0.outputs.table, False)
 ParallelCoordinates_0.inputs.ignore.set(['^file', '^id'], False)
-ParallelCoordinates_0.inputs.selection.set([6, 9], False)
-ParallelCoordinates_0.inputs.compose.set("Model Name", False)
 Barrier_0.inputs.table.set(ZarrTimeSpan_0.outputs.table, False)
 DirSchema_0.inputs.directory.set("/scratch/07644/oxygen/LANL_cleaned_data/interp_zarr_stores", False)
 ZarrToDS_0.inputs.table.set(Barrier_0.outputs.table, False)
