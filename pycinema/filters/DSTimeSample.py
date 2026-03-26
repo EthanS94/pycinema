@@ -21,47 +21,81 @@ class DSTimeSample(Filter):
             }
         )
 
+        # Retained state between updates
+        self._prev_header = None
+        self._prev_input_rows = []
+        self._prev_output_rows = []
+
     def _update(self):
 
         table = self.inputs.table.get()
         tableExtent = getTableExtent(table)
         if tableExtent[0]<1 or tableExtent[1]<1:
+            self._clear_cache()
             return self.outputs.table.set([[]])
 
+        header = table[0]
+        input_rows = table[1:]
+
         # get .zarr files from table
-        file_col = next((i for i, h in enumerate(table[0]) if h == "file"), None)
+        file_col = next((i for i, h in enumerate(header) if h == "file"), None)
         if file_col is None:
             self.outputs.table.set([[]])
+            self._clear_cache()
             return 1
 
         # get xarray dataset column from table
-        ds_col = next((i for i, h in enumerate(table[0]) if h == "xr_dataset"), None)
+        ds_col = next((i for i, h in enumerate(header) if h == "xr_dataset"), None)
         if ds_col is None:
             self.outputs.table.set([[]])
+            self._clear_cache()
             return 1
 
         # get rolling_average from table
-        rc_col = next((i for i, h in enumerate(table[0]) if h == "Accumulation"), None)
+        rc_col = next((i for i, h in enumerate(header) if h == "Accumulation"), None)
         if rc_col is None:
             self.outputs.table.set([[]])
+            self._clear_cache()
             return 1
 
         # get start and end datesfrom table
-        date_col = next((i for i, h in enumerate(table[0]) if h == "Time Span"), None)
+        date_col = next((i for i, h in enumerate(header) if h == "Time Span"), None)
         if date_col is None:
             self.outputs.table.set([[]])
+            self._clear_cache()
             return 1
         dates = table[1][date_col]
 
         # get model_name from table
-        mn_col = next((i for i, h in enumerate(table[0]) if h == "Model Name"), None)
+        mn_col = next((i for i, h in enumerate(header) if h == "Model Name"), None)
         if mn_col is None:
             print("Model name column (Model Name) not found in input table")
             self.outputs.table.set([])
+            self._clear_cache()
             return 1
 
-        ds_list = [['xr_dataset']]
-        for row in table[1:]:
+        # If header changed, invalidate retained rows
+        header_changed = self._prev_header != header
+
+        output_header = header[:-1] + ["xr_dataset"]
+        output_rows = []
+
+        for i, row in enumerate(input_rows):
+            row_copy = list(row)
+
+            # Reuse retained output row if the input row is unchanged
+            can_reuse = (
+                not header_changed
+                and i < len(self._prev_input_rows)
+                and i < len(self._prev_output_rows)
+                and row_copy == self._prev_input_rows[i]
+            )
+
+            if can_reuse:
+                retained_output_row = self._prev_output_rows[i]
+                output_rows.append(retained_output_row)
+                continue
+
             zarr_file = row[file_col]
             rolling_c = row[rc_col]
             rolling_c = int(rolling_c.split(' ')[0])
@@ -69,13 +103,22 @@ class DSTimeSample(Filter):
             print(f"Downsampling {row[mn_col]} by time...")
             ds = ds_time_sample(ds, dates, rolling_c, zarr_file)
             if ds != None:
-                ds_list.append([ds.compute()])
+                output_row = row_copy[:-1] + [ds]
             else:
-                ds_list.append([None])
+                output_row = row_copy[:-1] + [None]
+            output_rows.append(output_row)
 
-        table = [input_row[:-1] + ds_row for input_row, ds_row in zip(table, ds_list)]
+        # Retain current input/output state for next update
+        self._prev_header = list(header)
+        self._prev_input_rows = [list(r) for r in input_rows]
+        self._prev_output_rows = list(output_rows)
 
-        self.outputs.table.set(table)
+        self.outputs.table.set([output_header] + output_rows)
+
+    def _clear_cache(self):
+        self._prev_header = None
+        self._prev_input_rows = []
+        self._prev_output_rows = []
 
 def ds_time_sample(ds, dates=None, rolling_c=int(1), zarr_file="None"):
     """

@@ -31,6 +31,7 @@ class DSLatLonSample(Filter):
         # get xarray dataset column from table
         ds_col = next((i for i, h in enumerate(table[0]) if h == "xr_dataset"), None)
         if ds_col is None:
+            print("xarray dataset column (xr_dataset) not found in input table")
             self.outputs.table.set([[]])
             return 1
 
@@ -58,11 +59,14 @@ class DSLatLonSample(Filter):
         ds_list = [['xr_dataset']]
         for row in table[1:]:
             ds = row[ds_col]
-            ds = ds_latlon_sample(ds, lats, lons)
-            if ds != None:
-                ds_list.append([ds.compute()])
+            if lats[0] > -90 or lats[1] < 90 or lons[0] > 0 or lons[1] < 360:
+                ds = ds_latlon_sample(ds, lats, lons)
+                if ds != None:
+                    ds_list.append([ds.compute()])
+                else:
+                    ds_list.append([None])
             else:
-                ds_list.append([None])
+                ds_list.append([ds])
 
         table = [input_row[:-1] + ds_row for input_row, ds_row in zip(table, ds_list)]
 
