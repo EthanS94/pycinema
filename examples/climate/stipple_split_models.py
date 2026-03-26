@@ -14,6 +14,7 @@ ZarrToDS_0 = pycinema.filters.ZarrToDS()
 ZarrTimeSpan_0 = pycinema.filters.ZarrTimeSpan()
 StippleCompare_0 = pycinema.filters.StippleCompare()
 DSTimeSample_0 = pycinema.filters.DSTimeSample()
+DSLatLonSample_0 = pycinema.filters.DSLatLonSample()
 ImageView_0 = pycinema.filters.ImageView()
 
 # properties
@@ -24,10 +25,9 @@ DirSchema_0.inputs.directory.set("/scratch/07644/oxygen/LANL_cleaned_data/interp
 ZarrToDS_0.inputs.table.set(Barrier_0.outputs.table, False)
 ZarrTimeSpan_0.inputs.table.set(ParallelCoordinates_0.outputs.table, False)
 ZarrTimeSpan_0.inputs.ignore.set(['^id'], False)
-StippleCompare_0.inputs.table.set(DSTimeSample_0.outputs.table, False)
 DSTimeSample_0.inputs.table.set(ZarrToDS_0.outputs.table, False)
-DSTimeSample_0.inputs.start_date.set("", False)
-DSTimeSample_0.inputs.end_date.set("", False)
+DSLatLonSample_0.inputs.table.set(DSTimeSample_0.outputs.table, False)
+StippleCompare_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
 ImageView_0.inputs.images.set(StippleCompare_0.outputs.images, False)
 ImageView_0.inputs.selection.set([], False)
 

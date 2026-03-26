@@ -15,8 +15,6 @@ class DSTimeSample(Filter):
         super().__init__(
             inputs={
                 'table': [[]],
-                'start_date': '',
-                'end_date': ''
             },
             outputs={
                 'table': [[]]
@@ -26,8 +24,6 @@ class DSTimeSample(Filter):
     def _update(self):
 
         table = self.inputs.table.get()
-        start_date = self.inputs.start_date.get()
-        end_date = self.inputs.end_date.get()
         tableExtent = getTableExtent(table)
         if tableExtent[0]<1 or tableExtent[1]<1:
             return self.outputs.table.set([[]])
@@ -57,20 +53,6 @@ class DSTimeSample(Filter):
             return 1
         dates = table[1][date_col]
 
-        # get lat from table
-        lat_col = next((i for i, h in enumerate(table[0]) if h == "Latitude"), None)
-        if lat_col is None:
-            self.outputs.table.set([[]])
-            return 1
-        lats = table[1][lat_col]
-
-        # get lon from table
-        lon_col = next((i for i, h in enumerate(table[0]) if h == "Longitude"), None)
-        if lon_col is None:
-            self.outputs.table.set([[]])
-            return 1
-        lons = table[1][lon_col]
-
         # get model_name from table
         mn_col = next((i for i, h in enumerate(table[0]) if h == "Model Name"), None)
         if mn_col is None:
@@ -86,7 +68,6 @@ class DSTimeSample(Filter):
             ds = row[ds_col]
             print(f"Downsampling {row[mn_col]} by time...")
             ds = ds_time_sample(ds, dates, rolling_c, zarr_file)
-            ds = ds_latlon_sample(ds, lats, lons)
             if ds != None:
                 ds_list.append([ds.compute()])
             else:
@@ -95,16 +76,6 @@ class DSTimeSample(Filter):
         table = [input_row[:-1] + ds_row for input_row, ds_row in zip(table, ds_list)]
 
         self.outputs.table.set(table)
-
-def ds_latlon_sample(ds, lats, lons):
-    # downsample by lat lon if they are not the default
-    if lats[0] > -90 or lats[1] < 90:
-        print('down selecting lats')
-        ds = ds.sel(lat=slice(lats[0], lats[1]))
-    if lons[0] > 0 or lons[1] < 360:
-        print('down selecting lons')
-        ds = ds.sel(lon=slice(lons[0], lons[1]))
-    return ds
 
 def ds_time_sample(ds, dates=None, rolling_c=int(1), zarr_file="None"):
     """

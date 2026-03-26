@@ -10,6 +10,7 @@ from .TableQuery import *
 from .DepthCompositing import *
 from .DirSchema import *
 from .DirSchema_SubSelect import *
+from .DSLatLonSample import *
 from .DSIReader import *
 from .DSImageReader import *
 from .DSTimeSpan import *
