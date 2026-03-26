@@ -71,21 +71,23 @@ class DSTimeSample(Filter):
             return 1
         lons = table[1][lon_col]
 
+        # get model_name from table
+        mn_col = next((i for i, h in enumerate(table[0]) if h == "Model Name"), None)
+        if mn_col is None:
+            print("Model name column (Model Name) not found in input table")
+            self.outputs.table.set([])
+            return 1
+
         ds_list = [['xr_dataset']]
         for row in table[1:]:
             zarr_file = row[file_col]
             rolling_c = row[rc_col]
             rolling_c = int(rolling_c.split(' ')[0])
             ds = row[ds_col]
+            print(f"Downsampling {row[mn_col]} by time...")
             ds = ds_time_sample(ds, dates, rolling_c, zarr_file)
+            ds = ds_latlon_sample(ds, lats, lons)
             if ds != None:
-                # downsample by lat lon if they are not the default
-                if lats[0] > -90 or lats[1] < 90:
-                    print('down selecting lats')
-                    ds = ds.sel(lat=slice(lats[0], lats[1]))
-                if  lons[0] > 0 or lons[1] < 360:
-                    print('down selecting lons')
-                    ds = ds.sel(lon=slice(lons[0], lons[1]))
                 ds_list.append([ds.compute()])
             else:
                 ds_list.append([None])
@@ -94,6 +96,15 @@ class DSTimeSample(Filter):
 
         self.outputs.table.set(table)
 
+def ds_latlon_sample(ds, lats, lons):
+    # downsample by lat lon if they are not the default
+    if lats[0] > -90 or lats[1] < 90:
+        print('down selecting lats')
+        ds = ds.sel(lat=slice(lats[0], lats[1]))
+    if lons[0] > 0 or lons[1] < 360:
+        print('down selecting lons')
+        ds = ds.sel(lon=slice(lons[0], lons[1]))
+    return ds
 
 def ds_time_sample(ds, dates=None, rolling_c=int(1), zarr_file="None"):
     """
