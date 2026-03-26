@@ -98,8 +98,6 @@ class ZarrToDS(Filter):
                 # Downselect to chosen model if ds contains multiple models
                 if "model" in ds.dims:
                     ds = ds.sel(model=row[mn_col])
-                    print(row[mn_col])
-                    print(ds)
                 ds_list.append([ds])
             else:
                 ds_list.append([None])

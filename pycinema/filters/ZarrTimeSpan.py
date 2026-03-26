@@ -189,11 +189,11 @@ class ZarrTimeSpan(Filter):
     w.lon = QRangeSlider(QtCore.Qt.Horizontal)
 
     w.edit_lon_min = QtWidgets.QLineEdit()
-    w.edit_lon_min.setPlaceholderText("-180")
+    w.edit_lon_min.setPlaceholderText("0")
     w.edit_lon_min.setMaximumWidth(60)
 
     w.edit_lon_max = QtWidgets.QLineEdit()
-    w.edit_lon_max.setPlaceholderText("180")
+    w.edit_lon_max.setPlaceholderText("360")
     w.edit_lon_max.setMaximumWidth(60)
 
     w.lon_label = QtWidgets.QLabel()
@@ -316,7 +316,7 @@ class ZarrTimeSpan(Filter):
     #w.lat.valueChanged.connect(set_lat)
     w.lat.valueChanged.connect(lambda v: w.lat_label.setText(f"{v[0]} → {v[1]}"))
     #w.lon.valueChanged.connect(set_lon)
-    w.lon.valueChanged.connect(lambda v: w.lat_label.setText(f"{v[0]} → {v[1]}"))
+    w.lon.valueChanged.connect(lambda v: w.lon_label.setText(f"{v[0]} → {v[1]}"))
 
     w.lat.sliderReleased.connect(
       lambda: set_lat(w.lat.value())
@@ -360,7 +360,7 @@ class ZarrTimeSpan(Filter):
     w.range.setRange(0, span)
 
     w.lat.setRange(-90, 90)
-    w.lon.setRange(-180, 180)
+    w.lon.setRange(0, 360)
 
     w.toggle.setChecked(mode == 'O')
 
@@ -419,8 +419,8 @@ class ZarrTimeSpan(Filter):
     st = self.inputs.state.get() or {}
     lat_min = -90
     lat_max = 90
-    lon_min = -180
-    lon_max = 180
+    lon_min = 0
+    lon_max = 360
 
     if 'lat' not in st:
         st['lat'] = {'V': [lat_min, lat_max], 'B': [lat_min, lat_max]}
@@ -470,8 +470,6 @@ class ZarrTimeSpan(Filter):
     output_table = [input_row + [dates, lats, lons] for input_row in table[1:]]
     output_table.insert(0, headers)
     self.outputs.table.set(output_table)
-
-    print(output_table)
 
     self.emitter.s_update.emit()
     return 1

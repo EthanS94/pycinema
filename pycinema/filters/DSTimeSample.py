@@ -55,8 +55,21 @@ class DSTimeSample(Filter):
         if date_col is None:
             self.outputs.table.set([[]])
             return 1
-
         dates = table[1][date_col]
+
+        # get lat from table
+        lat_col = next((i for i, h in enumerate(table[0]) if h == "Latitude"), None)
+        if lat_col is None:
+            self.outputs.table.set([[]])
+            return 1
+        lats = table[1][lat_col]
+
+        # get lon from table
+        lon_col = next((i for i, h in enumerate(table[0]) if h == "Longitude"), None)
+        if lon_col is None:
+            self.outputs.table.set([[]])
+            return 1
+        lons = table[1][lon_col]
 
         ds_list = [['xr_dataset']]
         for row in table[1:]:
@@ -66,6 +79,13 @@ class DSTimeSample(Filter):
             ds = row[ds_col]
             ds = ds_time_sample(ds, dates, rolling_c, zarr_file)
             if ds != None:
+                # downsample by lat lon if they are not the default
+                if lats[0] > -90 or lats[1] < 90:
+                    print('down selecting lats')
+                    ds = ds.sel(lat=slice(lats[0], lats[1]))
+                if  lons[0] > 0 or lons[1] < 360:
+                    print('down selecting lons')
+                    ds = ds.sel(lon=slice(lons[0], lons[1]))
                 ds_list.append([ds.compute()])
             else:
                 ds_list.append([None])

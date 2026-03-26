@@ -105,6 +105,20 @@ class StippleCompare(Filter):
             self.outputs.table.set([])
             return 1
 
+        # get lat from table
+        lat_col = next((i for i, h in enumerate(table[0]) if h == "Latitude"), None)
+        if lat_col is None:
+            self.outputs.table.set([[]])
+            return 1
+        lats = table[1][lat_col]
+
+        # get lon from table
+        lon_col = next((i for i, h in enumerate(table[0]) if h == "Latitude"), None)
+        if lon_col is None:
+            self.outputs.table.set([[]])
+            return 1
+        lons = table[1][lon_col]
+
         historical_models = []
         observations = []
 
@@ -234,7 +248,18 @@ class StippleCompare(Filter):
         row_size = subplot_dim_row * 20
         column_size = subplot_dim_column * 10
 
-        proj = WinkelTripel()
+        #proj = WinkelTripel()
+        proj = ccrs.PlateCarree()
+        transform = ccrs.PlateCarree()
+
+        cmap = "BuPu"
+        robust = True
+
+        fz = 26
+        pad = 20
+        stipple_size = 1
+        stipple_spacing = 2
+
         f, axes = plt.subplots(
             subplot_dim_column,
             subplot_dim_row,
@@ -243,15 +268,6 @@ class StippleCompare(Filter):
             squeeze=False,
             subplot_kw=dict(projection=proj),
         )
-
-        cmap = "BuPu"
-        robust = True
-        transform = ccrs.PlateCarree()
-
-        fz = 26
-        pad = 20
-        stipple_size = 1
-        stipple_spacing = 2
 
         # Extent for imshow
         x0 = float(lons.min())
