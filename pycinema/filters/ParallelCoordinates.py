@@ -197,19 +197,34 @@ try:
             else:
                 parameters = self.filter.computeParameterValues()
 
-                if self.parameter in parameters:
-                    parameters[self.parameter] |= new_values
+                current_values = set(parameters.get(self.parameter, set()))
+
+                # Toggle behavior:
+                # - if the dragged/clicked values are already all selected, remove them
+                # - otherwise add them
+                if new_values.issubset(current_values):
+                    current_values -= new_values
                 else:
-                    parameters[self.parameter] = set(new_values)
+                    current_values |= new_values
+
+                if current_values:
+                    parameters[self.parameter] = current_values
+                elif self.parameter in parameters:
+                    del parameters[self.parameter]
 
             self.filter.axis_selections = {
                 p: set(vs) for p, vs in parameters.items() if len(vs) > 0
             }
 
-            sql = "SELECT `id` " + self.filter.computeSQL(self.filter.axis_selections)
-            table = queryData(self.filter.db, sql)
+            if self.filter.axis_selections:
+                sql = "SELECT `id` " + self.filter.computeSQL(self.filter.axis_selections)
+                table = queryData(self.filter.db, sql)
+                selection = [table[i][0] for i in range(1, len(table))]
+            else:
+                selection = []
+
             self.filter.inputs.selection.set(
-                [table[i][0] for i in range(1, len(table))],
+                selection,
                 True,
                 True,
             )

@@ -98,6 +98,13 @@ class StippleCompare(Filter):
             self.outputs.images.set([])
             return 1
 
+        # get model_name from table
+        mn_col = next((i for i, h in enumerate(table[0]) if h == "Model Name"), None)
+        if mn_col is None:
+            print("Model name column (Model Name) not found in input table")
+            self.outputs.table.set([])
+            return 1
+
         historical_models = []
         observations = []
 
@@ -139,7 +146,7 @@ class StippleCompare(Filter):
             else:
                 # One dataset, one model
                 quants_ds_dict[rc].append({
-                    "label": ds.attrs.get("title", "model"),
+                    "label": row[mn_col],
                     "q": q,
                     "mask": None,
                 })

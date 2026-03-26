@@ -66,7 +66,7 @@ class DSTimeSample(Filter):
             ds = row[ds_col]
             ds = ds_time_sample(ds, dates, rolling_c, zarr_file)
             if ds != None:
-                ds_list.append([ds])
+                ds_list.append([ds.compute()])
             else:
                 ds_list.append([None])
 

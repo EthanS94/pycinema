@@ -72,22 +72,34 @@ class ZarrToDS(Filter):
             self.outputs.table.set([])
             return 1
 
+        # get model_name from table
+        mn_col = next((i for i, h in enumerate(table[0]) if h == "Model Name"), None)
+        if mn_col is None:
+            print("Model name column (Model Name) not found in input table")
+            self.outputs.table.set([])
+            return 1
+
         ds_list = [['xr_dataset']]
         zarr_file = ''
         for row in table[1:]:
             # if zarr_file was just read, re-use the ds instead of reloading again
-            if zarr_file == row[file_col]:
-                rolling_c = row[rc_col]
-                print(f'reading {zarr_file} at {rolling_c} accumulation...')
-                rolling_c = int(rolling_c.split(' ')[0])
-                ds = zarr_to_ds(zarr_file, rolling_c, reuse=True)
-            else:
-                zarr_file = row[file_col]
-                rolling_c = row[rc_col]
-                print(f'reading {zarr_file} at {rolling_c} accumulation...')
-                rolling_c = int(rolling_c.split(' ')[0])
-                ds = zarr_to_ds(zarr_file, rolling_c, reuse=False)
+            #if zarr_file == row[file_col]:
+            #    rolling_c = row[rc_col]
+            #    print(f'reading {zarr_file} at {rolling_c} accumulation...')
+            #    rolling_c = int(rolling_c.split(' ')[0])
+            #    ds = zarr_to_ds(zarr_file, rolling_c, reuse=True)
+            #else:
+            zarr_file = row[file_col]
+            rolling_c = row[rc_col]
+            print(f'reading {zarr_file} at {rolling_c} accumulation...')
+            rolling_c = int(rolling_c.split(' ')[0])
+            ds = zarr_to_ds(zarr_file, rolling_c, reuse=False)
             if ds != None:
+                # Downselect to chosen model if ds contains multiple models
+                if "model" in ds.dims:
+                    ds = ds.sel(model=row[mn_col])
+                    print(row[mn_col])
+                    print(ds)
                 ds_list.append([ds])
             else:
                 ds_list.append([None])

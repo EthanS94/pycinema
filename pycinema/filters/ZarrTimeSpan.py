@@ -128,8 +128,11 @@ class ZarrTimeSpan(Filter):
   # -------- widgets --------
   def generateWidgets(self):
     w = QtWidgets.QFrame()
-    lay = QtWidgets.QHBoxLayout(w)
-    lay.setContentsMargins(0,0,0,0)
+    main = QtWidgets.QVBoxLayout(w)
+    main.setContentsMargins(0,0,0,0)
+
+    # ---------- DATE ROW ----------
+    date_row = QtWidgets.QHBoxLayout()
 
     w.toggle = QtWidgets.QCheckBox("Threshold")
 
@@ -148,12 +151,60 @@ class ZarrTimeSpan(Filter):
     w.edit_end.setPlaceholderText("end YYYY-MM-DD")
     w.edit_end.setMaximumWidth(140)
 
-    lay.addWidget(w.toggle)
-    lay.addWidget(w.single, 1)
-    lay.addWidget(w.range, 1)
-    lay.addWidget(w.edit_single)
-    lay.addWidget(w.edit_start)
-    lay.addWidget(w.edit_end)
+    date_row.addWidget(w.toggle)
+    date_row.addWidget(w.single, 1)
+    date_row.addWidget(w.range, 1)
+    date_row.addWidget(w.edit_single)
+    date_row.addWidget(w.edit_start)
+    date_row.addWidget(w.edit_end)
+
+    main.addLayout(date_row)
+
+    # ---------- LAT ROW ----------
+    lat_row = QtWidgets.QHBoxLayout()
+
+    w.lat = QRangeSlider(QtCore.Qt.Horizontal)
+
+    w.edit_lat_min = QtWidgets.QLineEdit()
+    w.edit_lat_min.setPlaceholderText("-90")
+    w.edit_lat_min.setMaximumWidth(60)
+
+    w.edit_lat_max = QtWidgets.QLineEdit()
+    w.edit_lat_max.setPlaceholderText("90")
+    w.edit_lat_max.setMaximumWidth(60)
+
+    w.lat_label = QtWidgets.QLabel()
+
+    lat_row.addWidget(QtWidgets.QLabel("Lat"))
+    lat_row.addWidget(w.lat, 1)
+    lat_row.addWidget(w.edit_lat_min)
+    lat_row.addWidget(w.edit_lat_max)
+    lat_row.addWidget(w.lat_label)
+
+    main.addLayout(lat_row)
+
+    # ---------- LON ROW ----------
+    lon_row = QtWidgets.QHBoxLayout()
+
+    w.lon = QRangeSlider(QtCore.Qt.Horizontal)
+
+    w.edit_lon_min = QtWidgets.QLineEdit()
+    w.edit_lon_min.setPlaceholderText("-180")
+    w.edit_lon_min.setMaximumWidth(60)
+
+    w.edit_lon_max = QtWidgets.QLineEdit()
+    w.edit_lon_max.setPlaceholderText("180")
+    w.edit_lon_max.setMaximumWidth(60)
+
+    w.lon_label = QtWidgets.QLabel()
+
+    lon_row.addWidget(QtWidgets.QLabel("Lon"))
+    lon_row.addWidget(w.lon, 1)
+    lon_row.addWidget(w.edit_lon_min)
+    lon_row.addWidget(w.edit_lon_max)
+    lon_row.addWidget(w.lon_label)
+
+    main.addLayout(lon_row)
 
     # ---- callbacks that only touch state ----
     # FIXME: when switching to threshold at min value,
@@ -219,9 +270,71 @@ class ZarrTimeSpan(Filter):
       st['date'] = ds
       self.inputs.state.set(st)
 
+    def set_lat(v):
+        if self.ignore: return
+        lo, hi = map(float, v)
+        st = deepcopy(self.inputs.state.get()) or {}
+        st['lat']['V'] = [lo, hi]
+        self.inputs.state.set(st)
+    
+    def set_lon(v):
+        if self.ignore: return
+        lo, hi = map(float, v)
+        st = deepcopy(self.inputs.state.get()) or {}
+        st['lon']['V'] = [lo, hi]
+        self.inputs.state.set(st)
+
+    def set_lat_text():
+        if self.ignore: return
+        st = deepcopy(self.inputs.state.get()) or {}
+        try:
+            lo = int(w.edit_lat_min.text())
+            hi = int(w.edit_lat_max.text())
+        except:
+            return
+        lo, hi = sorted([lo, hi])
+        st['lat']['V'] = [lo, hi]
+        self.inputs.state.set(st)
+    
+    def set_lon_text():
+        if self.ignore: return
+        st = deepcopy(self.inputs.state.get()) or {}
+        try:
+            lo = int(w.edit_lon_min.text())
+            hi = int(w.edit_lon_max.text())
+        except:
+            return
+        lo, hi = sorted([lo, hi])
+        st['lon']['V'] = [lo, hi]
+        self.inputs.state.set(st)
+    
+    w.edit_lat_min.editingFinished.connect(set_lat_text)
+    w.edit_lat_max.editingFinished.connect(set_lat_text)
+    w.edit_lon_min.editingFinished.connect(set_lon_text)
+    w.edit_lon_max.editingFinished.connect(set_lon_text)
+
+    #w.lat.valueChanged.connect(set_lat)
+    w.lat.valueChanged.connect(lambda v: w.lat_label.setText(f"{v[0]} → {v[1]}"))
+    #w.lon.valueChanged.connect(set_lon)
+    w.lon.valueChanged.connect(lambda v: w.lat_label.setText(f"{v[0]} → {v[1]}"))
+
+    w.lat.sliderReleased.connect(
+      lambda: set_lat(w.lat.value())
+    )
+
+    w.lon.sliderReleased.connect(
+      lambda: set_lon(w.lon.value())
+    )
+
     w.toggle.toggled.connect(set_mode)
-    w.single.valueChanged.connect(set_single_slider)
-    w.range.valueChanged.connect(set_range_slider)
+    #w.single.valueChanged.connect(set_single_slider)
+    w.single.sliderReleased.connect(
+      lambda: set_single_slider(w.single.value())
+    )
+    #w.range.valueChanged.connect(set_range_slider)
+    w.range.sliderReleased.connect(
+      lambda: set_range_slider(w.range.value())
+    )
     w.edit_single.editingFinished.connect(set_single_text)
     w.edit_start.editingFinished.connect(set_range_texts)
     w.edit_end.editingFinished.connect(set_range_texts)
@@ -246,6 +359,9 @@ class ZarrTimeSpan(Filter):
     w.single.setRange(0, span)
     w.range.setRange(0, span)
 
+    w.lat.setRange(-90, 90)
+    w.lon.setRange(-180, 180)
+
     w.toggle.setChecked(mode == 'O')
 
     w.single.setVisible(mode == 'S')
@@ -266,6 +382,23 @@ class ZarrTimeSpan(Filter):
       w.edit_start.setText(self._i2d(lo, start_date).isoformat())
       w.edit_end.setText(self._i2d(hi, start_date).isoformat())
 
+    lat = st['lat']['V']
+    lon = st['lon']['V']
+    
+    self.ignore = True
+    
+    w.lat.setValue(tuple(lat))
+    w.lon.setValue(tuple(lon))
+    
+    w.edit_lat_min.setText(str(lat[0]))
+    w.edit_lat_max.setText(str(lat[1]))
+    
+    w.edit_lon_min.setText(str(lon[0]))
+    w.edit_lon_max.setText(str(lon[1]))
+    
+    w.lat_label.setText(f"{lat[0]} → {lat[1]}")
+    w.lon_label.setText(f"{lon[0]} → {lon[1]}")
+    
     self.ignore = False
 
   # -------- update --------
@@ -282,6 +415,24 @@ class ZarrTimeSpan(Filter):
       self.outputs.table.set([])
       self.emitter.s_update.emit()
       return 1
+
+    st = self.inputs.state.get() or {}
+    lat_min = -90
+    lat_max = 90
+    lon_min = -180
+    lon_max = 180
+
+    if 'lat' not in st:
+        st['lat'] = {'V': [lat_min, lat_max], 'B': [lat_min, lat_max]}
+    else:
+        st['lat']['B'] = [lat_min, lat_max]
+    
+    if 'lon' not in st:
+        st['lon'] = {'V': [lon_min, lon_max], 'B': [lon_min, lon_max]}
+    else:
+        st['lon']['B'] = [lon_min, lon_max]
+    
+    self.inputs.state.set(st)
 
     # compute start/end from filenames
     zarr_globs = [row[file_col] for row in table[1:]]
@@ -310,12 +461,17 @@ class ZarrTimeSpan(Filter):
     # init/clamp slider state
     self._ensure_date_state(start_date, end_date, reset_on_change=True)
 
+    st = self.inputs.state.get()
     output_s, output_e = self.get_selected_dates()
     dates = [output_s, output_e]
-    headers = table[0] + ["Time Span"]
-    output_table = [input_row + [dates] for input_row in table[1:]]
+    lats = st['lat']['V']
+    lons = st['lon']['V']
+    headers = table[0] + ["Time Span", 'Latitude', 'Longitude']
+    output_table = [input_row + [dates, lats, lons] for input_row in table[1:]]
     output_table.insert(0, headers)
     self.outputs.table.set(output_table)
+
+    print(output_table)
 
     self.emitter.s_update.emit()
     return 1
