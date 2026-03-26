@@ -11,9 +11,34 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import matplotlib
 
+# imports for land mask
+import cartopy.feature as cfeature
+from shapely.geometry import Point
+from shapely.prepared import prep
+from shapely.ops import unary_union
+
 import time
 
 from pycinema import getTableExtent
+
+def build_land_mask(lons, lats):
+    """
+    Return a 2D boolean mask that is True over land and False over ocean.
+    Assumes lons/lats are 1D coordinate arrays.
+    """
+    land_geom = unary_union(list(cfeature.NaturalEarthFeature(
+        "physical", "land", "110m"
+    ).geometries()))
+    land_geom = prep(land_geom)
+
+    lon_grid, lat_grid = np.meshgrid(lons, lats)
+
+    mask = np.zeros(lon_grid.shape, dtype=bool)
+    for j in range(lat_grid.shape[0]):
+        for i in range(lon_grid.shape[1]):
+            mask[j, i] = land_geom.contains(Point(float(lon_grid[j, i]), float(lat_grid[j, i])))
+
+    return mask
 
 class WinkelTripel(ccrs._WarpedRectangularProjection):
 	"""
@@ -186,6 +211,10 @@ class StippleCompare(Filter):
             self.outputs.images.set([])
             return 1
 
+        # build land mask
+        lons_mask = ((lons + 180) % 360) - 180
+        land_mask = build_land_mask(lons_mask, lats)
+
         # subplot rows is accumulation count with data
         subplot_dim_row = sum(1 for v in quants_ds_dict.values() if v)
 
@@ -214,7 +243,7 @@ class StippleCompare(Filter):
 
         fz = 26
         pad = 20
-        stipple_size = 20
+        stipple_size = 1
         stipple_spacing = 2
 
         # Extent for imshow
@@ -240,7 +269,8 @@ class StippleCompare(Filter):
                 ax = axes[model_count, rc_count]
 
                 print(f"imshow on {label}")
-                model["pr"].plot.imshow(
+                data_land = model["pr"].where(land_mask)
+                data_land.plot.imshow(
                     ax=ax,
                     robust=robust,
                     cmap=cmap,
@@ -253,6 +283,9 @@ class StippleCompare(Filter):
                         lat=slice(None, None, stipple_spacing),
                         lon=slice(None, None, stipple_spacing)
                     ).values
+
+                    land_sub = land_mask[::stipple_spacing, ::stipple_spacing]
+                    m = m & land_sub
 
                     iy, ix = np.nonzero(m)
                     stipple_lons = lons_sub[ix]
