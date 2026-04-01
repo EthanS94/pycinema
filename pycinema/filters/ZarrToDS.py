@@ -144,6 +144,11 @@ class ZarrToDS(Filter):
                     print(f"Model selection failed for row {i}: {e}")
                     ds = None
 
+            # transform lon to -180 -> 180
+            if (ds.lon.min() >= 0) and (ds.lon.max() > 180):
+                ds = ds.assign_coords(
+                    lon=((ds.lon + 180) % 360) - 180
+                ).sortby("lon")
             output_row = row_copy + [ds]
             output_table.append(output_row)
             new_output_rows.append(output_row)

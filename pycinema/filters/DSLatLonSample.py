@@ -59,7 +59,7 @@ class DSLatLonSample(Filter):
         ds_list = [['xr_dataset']]
         for row in table[1:]:
             ds = row[ds_col]
-            if lats[0] > -90 or lats[1] < 90 or lons[0] > 0 or lons[1] < 360:
+            if lats[0] > -90 or lats[1] < 90 or lons[0] > -180 or lons[1] < 180:
                 ds = ds_latlon_sample(ds, lats, lons)
                 if ds != None:
                     ds_list.append([ds.compute()])
@@ -77,7 +77,7 @@ def ds_latlon_sample(ds, lats, lons):
     if lats[0] > -90 or lats[1] < 90:
         print('down selecting lats')
         ds = ds.sel(lat=slice(lats[0], lats[1]))
-    if lons[0] > 0 or lons[1] < 360:
+    if lons[0] > -180 or lons[1] < 180:
         print('down selecting lons')
         ds = ds.sel(lon=slice(lons[0], lons[1]))
     return ds
