@@ -79,7 +79,7 @@ class ZarrToDS(Filter):
             return 1
 
         # get rolling_cumulation from table
-        rc_col = next((i for i, h in enumerate(header) if h == "Accumulation"), None)
+        rc_col = next((i for i, h in enumerate(header) if h == "Metric"), None)
         if rc_col is None:
             print("Accumulation column (Accumulation) not found in input table")
             self._clear_cache()
@@ -87,9 +87,9 @@ class ZarrToDS(Filter):
             return 1
 
         # get model_name from table
-        mn_col = next((i for i, h in enumerate(header) if h == "Model Name"), None)
+        mn_col = next((i for i, h in enumerate(header) if h == "Dataset"), None)
         if mn_col is None:
-            print("Model name column (Model Name) not found in input table")
+            print("Model name column (Dataset) not found in input table")
             self._clear_cache()
             self.outputs.table.set([])
             return 1
@@ -122,7 +122,7 @@ class ZarrToDS(Filter):
             zarr_file = row[file_col]
             rolling_c = row[rc_col]
 
-            print(f"reading {zarr_file} at {rolling_c} accumulation...")
+            print(f"reading {row[mn_col]} at {rolling_c} accumulation...")
 
             try:
                 rolling_c = int(str(rolling_c).split(" ")[0])

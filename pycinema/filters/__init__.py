@@ -35,6 +35,7 @@ from .Plot import *
 from .PlotTables import *
 from .PlotLineItem import *
 from .Python import *
+from .QuantilePlot import *
 from .RenderView import *
 from .ShaderDemoScene import *
 from .ShaderFXAA import *

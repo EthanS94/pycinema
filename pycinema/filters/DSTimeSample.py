@@ -52,7 +52,7 @@ class DSTimeSample(Filter):
             return 1
 
         # get rolling_average from table
-        rc_col = next((i for i, h in enumerate(header) if h == "Accumulation"), None)
+        rc_col = next((i for i, h in enumerate(header) if h == "Metric"), None)
         if rc_col is None:
             self.outputs.table.set([[]])
             self._clear_cache()
@@ -67,7 +67,7 @@ class DSTimeSample(Filter):
         dates = table[1][date_col]
 
         # get model_name from table
-        mn_col = next((i for i, h in enumerate(header) if h == "Model Name"), None)
+        mn_col = next((i for i, h in enumerate(header) if h == "Dataset"), None)
         if mn_col is None:
             print("Model name column (Model Name) not found in input table")
             self.outputs.table.set([])

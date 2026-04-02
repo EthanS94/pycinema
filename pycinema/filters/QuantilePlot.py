@@ -57,7 +57,7 @@ class WinkelTripel(ccrs._WarpedRectangularProjection):
 	def threshold(self):
 		return 1e4
 
-class StippleCompare(Filter):
+class QuantilePlot(Filter):
     def __init__(self):
         super().__init__(
             inputs={
@@ -125,43 +125,21 @@ class StippleCompare(Filter):
             return 1
         lons = table[1][lon_col]
 
-        historical_models = []
-        observations = []
-
-        for row in table[1:]:
-            if row[hist_col] == "Observation":
-                observations.append(row)
-            elif "Historical" in row[scen_col]:
-                historical_models.append(row)
-            else:
-                # couldn't identify row as either observation or historical model
-                pass
-
-        if len(historical_models) < 1 or len(observations) < 1:
-            print("Could not identify at least 1 historical model + 1 observation from selection.")
-            print("This workflow requires at least 1 of each.")
-            self.outputs.images.set([])
-            return 1
-
         quantile_value = 0.95
 
         # For each accumulation, store a list of plotting entries:
         # {"label": ..., "q": ..., "mask": ...}
         quants_ds_dict = {1: [], 3: [], 5: []}
 
-        # For observations, collect all quantiled members so we can build one envelope
-        obs_q_list = {1: [], 3: [], 5: []}
-
         # -----------------------------
-        # Historical model prep
+        # model prep
         # -----------------------------
-        for row in historical_models:
+        for row in table[1:]:
             rc = int(str(row[rc_col]).split(" ")[0])
             # Rechunk so time is a single chunk (improves performance of quantile over time)
             ds = row[ds_col].chunk({"time": -1})
 
             # Compute quantile once for the full dataset
-            print(f"Calulating quantile for historical models")
             q = ds.quantile(quantile_value, dim="time").compute()
 
             if "model" in q.dims:
@@ -169,66 +147,14 @@ class StippleCompare(Filter):
                 for model_name in q.model.values:
                     quants_ds_dict[rc].append({
                         "label": str(model_name),
-                        "q": q.sel(model=model_name),
-                        "mask": None,
+                        "q": q.sel(model=model_name)
                     })
             else:
                 # One dataset, one model
                 quants_ds_dict[rc].append({
                     "label": row[mn_col],
-                    "q": q,
-                    "mask": None,
+                    "q": q
                 })
-
-        # -----------------------------
-        # Observation prep
-        # Build a combined observational min/max envelope
-        # across all observation members for each accumulation
-        # -----------------------------
-        for row in observations:
-            rc = int(str(row[rc_col]).split(" ")[0])
-            # Rechunk so time is a single chunk (improves performance of quantile over time)
-            ds = row[ds_col].chunk({"time": -1})
-
-            # Compute quantile once for the full dataset
-            print(f"Calulating quantile for historical observations")
-            q = ds.quantile(quantile_value, dim="time").compute()
-
-            if "model" in q.dims:
-                for model_name in q.model.values:
-                    obs_q_list[rc].append(q.sel(model=model_name))
-            else:
-                obs_q_list[rc].append(q)
-
-        obs_min_dict = {1: None, 3: None, 5: None}
-        obs_max_dict = {1: None, 3: None, 5: None}
-
-        for rc, q_list in obs_q_list.items():
-            if not q_list:
-                continue
-
-            stacked = xr.concat(q_list, dim="obs_member")
-            obs_min_dict[rc] = stacked.min(dim="obs_member").compute()
-            obs_max_dict[rc] = stacked.max(dim="obs_member").compute()
-
-        # Need at least one observation envelope for plotting stipples
-        if all(v is None for v in obs_min_dict.values()):
-            print("No observational datasets available to build stipple mask.")
-            self.outputs.images.set([])
-            return 1
-
-        # -----------------------------
-        # Build masks
-        # -----------------------------
-        for rc, entries in quants_ds_dict.items():
-            if not entries:
-                continue
-            if obs_min_dict[rc] is None or obs_max_dict[rc] is None:
-                continue
-
-            for entry in entries:
-                print(f"Generating stipple mask for {entry['label']}")
-                entry["mask"] = (entry["q"] >= obs_min_dict[rc]) & (entry["q"] <= obs_max_dict[rc]).compute()
 
         # -----------------------------
         # Determine lon/lat once from the first available entry
@@ -291,9 +217,6 @@ class StippleCompare(Filter):
         y1 = float(lats.max())
         img_extent = [x0, x1, y0, y1]
 
-        lons_sub = lons[::stipple_spacing]
-        lats_sub = lats[::stipple_spacing]
-
         print("Plotting...")
         rc_count = 0
         for rc, entries in quants_ds_dict.items():
@@ -302,43 +225,22 @@ class StippleCompare(Filter):
 
             for model_count, entry in enumerate(entries):
                 model = entry["q"]
-                model_mask = entry["mask"]
                 label = entry["label"]
                 ax = axes[model_count, rc_count]
 
                 print(f"imshow on {label}")
                 data_land = model["pr"].where(land_mask)
+
+                # deal with members
+                if "members" in data_land.dims:
+                    data_land = data_land.mean(dim="members")
+
                 data_land.plot.imshow(
                     ax=ax,
                     robust=robust,
                     cmap=cmap,
                     transform=transform
                 )
-
-                print(f"model_mask on {label}")
-                if model_mask is not None:
-                    m = model_mask["pr"].isel(
-                        lat=slice(None, None, stipple_spacing),
-                        lon=slice(None, None, stipple_spacing)
-                    ).values
-
-                    land_sub = land_mask[::stipple_spacing, ::stipple_spacing]
-                    m = m & land_sub
-
-                    iy, ix = np.nonzero(m)
-                    stipple_lons = lons_sub[ix]
-                    stipple_lats = lats_sub[iy]
-
-                    print(f"scattering stipple dots on {label}")
-                    ax.scatter(
-                        stipple_lons,
-                        stipple_lats,
-                        s=stipple_size,
-                        color="black",
-                        alpha=1,
-                        marker="o",
-                        transform=transform
-                    )
 
                 axes[model_count, 0].text(
                     -0.15,
@@ -358,7 +260,7 @@ class StippleCompare(Filter):
             rc_count += 1
 
         f.suptitle(
-            f"{int(quantile_value * 100)}th Percentile Precip. Metrics for CMIP6 Datasets",
+            f"{int(quantile_value * 100)}th Percentile Precip. Metrics",
             fontsize=45
         )
 

@@ -50,7 +50,7 @@ class DSLatLonSample(Filter):
         lons = table[1][lon_col]
 
         # get model_name from table
-        mn_col = next((i for i, h in enumerate(table[0]) if h == "Model Name"), None)
+        mn_col = next((i for i, h in enumerate(table[0]) if h == "Dataset"), None)
         if mn_col is None:
             print("Model name column (Model Name) not found in input table")
             self.outputs.table.set([])

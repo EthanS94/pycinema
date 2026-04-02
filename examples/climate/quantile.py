@@ -16,22 +16,11 @@ CMIP6_OBS = base_zarr_dir + "obs_cmip6-interp_pr_1980-2023.zarr"
 GFDL_SPEAR_MED_FUTURE = base_zarr_dir + "GFDL-SPEAR-MED_ssp585_2015-2100.zarr"
 GFDL_SPEAR_MED_HISTORICAL = base_zarr_dir + "GFDL-SPEAR-MED_historical_1921-2014.zarr"
 
-'''
-array(['CMCC-CM2-SR5', 'INM-CM4-8', 'INM-CM5-0', 'CNRM-CM6-1',
-       'IPSL-CM6A-LR', 'GFDL-ESM4', 'EC-Earth3', 'CNRM-ESM2-1',
-       'EC-Earth3-Veg-LR'], dtype=object)
-array(['CESM2-WACCM', 'CNRM-CM6-1', 'CNRM-ESM2-1', 'EC-Earth3',
-       'EC-Earth3-Veg-LR', 'GFDL-ESM4', 'INM-CM4-8', 'INM-CM5-0',
-       'IPSL-CM6A-LR'], dtype=object)
-array(['ERA5', 'MSWEP_G', 'MSWEP_NG', 'NOAA_CPC'], dtype='<U8')
-'''
-
 zarr_stores = [
     ["Observation", "Historical (1980-2014)", "ERA5", None, CMIP6_OBS, 0],
     ["Observation", "Historical (1980-2014)", "MSWEP_G", None, CMIP6_OBS, 1],
     ["Observation", "Historical (1980-2014)", "MSWEP_NG", None, CMIP6_OBS, 2],
     ["Observation", "Historical (1980-2014)", "NOAA_CPC", None, CMIP6_OBS, 3],
-    ["CMIP6", "Historical (1980-2014)", "CESM2-WACCM", None, CMIP6_HISTORICAL, 4],
     ["CMIP6", "Historical (1980-2014)", "CNRM-CM6-1", None, CMIP6_HISTORICAL, 5],
     ["CMIP6", "Historical (1980-2014)", "CNRM-ESM2-1", None, CMIP6_HISTORICAL, 6],
     ["CMIP6", "Historical (1980-2014)", "EC-Earth3", None, CMIP6_HISTORICAL, 7],
@@ -59,7 +48,7 @@ zarr_stores = [
     ["CMIP6", "SSP2-4.5 (2015-2100)", "INM-CM5-0", None, CMIP6_FUTURE, 31],
     ["CMIP6", "SSP2-4.5 (2015-2100)", "IPSL-CM6A-LR", None, CMIP6_FUTURE, 32],
     ["Large Ensemble", "Historical (1980-2014)", "GFDL-SPEAR-MED", None, GFDL_SPEAR_MED_HISTORICAL, 33],
-    ["Large Ensemble", "SSP5-8.5 (2015-2100)", "GFDL-SPEAR-MED", None, GFDL_SPEAR_MED_HISTORICAL, 34]
+    ["Large Ensemble", "SSP5-8.5 (2015-2100)", "GFDL-SPEAR-MED", None, GFDL_SPEAR_MED_FUTURE, 34]
 ]
 
 data_structure = [["Collection", "Scenario", "Dataset", "Metric", "file", "id"]]
@@ -96,7 +85,7 @@ zarr_stores = [
     ["INM-CM5-0", "CMIP6", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 28],
     ["IPSL-CM6A-LR", "CMIP6", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 29],
     ["GFDL-SPEAR-MED", "Large Ensemble", "Historical (1980-2014)", None, GFDL_SPEAR_MED_HISTORICAL, 30],
-    ["GFDL-SPEAR-MED", "Large Ensemble", "SSP5-8.5 (2015-2100)", None, GFDL_SPEAR_MED_HISTORICAL, 31]
+    ["GFDL-SPEAR-MED", "Large Ensemble", "SSP5-8.5 (2015-2100)", None, GFDL_SPEAR_MED_FUTURE, 31]
 ]
 
 data_structure = [["Dataset", "Collection", "Scenario", "Metric", "file", "id"]]
@@ -115,7 +104,7 @@ ParallelCoordinates_0 = pycinema.filters.ParallelCoordinates()
 Barrier_0 = pycinema.filters.Barrier()
 ZarrToDS_0 = pycinema.filters.ZarrToDS()
 ZarrTimeSpan_0 = pycinema.filters.ZarrTimeSpan()
-StippleCompare_0 = pycinema.filters.StippleCompare()
+QuantilePlot_0 = pycinema.filters.QuantilePlot()
 DSTimeSample_0 = pycinema.filters.DSTimeSample()
 DSLatLonSample_0 = pycinema.filters.DSLatLonSample()
 ImageView_0 = pycinema.filters.ImageView()
@@ -129,8 +118,8 @@ ZarrTimeSpan_0.inputs.table.set(ParallelCoordinates_0.outputs.table, False)
 ZarrTimeSpan_0.inputs.ignore.set(['^id'], False)
 DSTimeSample_0.inputs.table.set(ZarrToDS_0.outputs.table, False)
 DSLatLonSample_0.inputs.table.set(DSTimeSample_0.outputs.table, False)
-StippleCompare_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
-ImageView_0.inputs.images.set(StippleCompare_0.outputs.images, False)
+QuantilePlot_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
+ImageView_0.inputs.images.set(QuantilePlot_0.outputs.images, False)
 ImageView_0.inputs.selection.set([], False)
 
 # layout
