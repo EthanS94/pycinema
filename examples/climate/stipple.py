@@ -28,27 +28,7 @@ zarr_stores = [
     ["CMIP6", "GFDL-ESM4", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 9],
     ["CMIP6", "INM-CM4-8", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 10],
     ["CMIP6", "INM-CM5-0", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 11],
-    ["CMIP6", "IPSL-CM6A-LR", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 12],
-    ["CMIP6", "CESM2-WACCM", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 14],
-    ["CMIP6", "CNRM-CM6-1", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 15],
-    ["CMIP6", "CNRM-ESM2-1", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 16],
-    ["CMIP6", "EC-Earth3", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 17],
-    ["CMIP6", "EC-Earth3-Veg-LR", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 18],
-    ["CMIP6", "GFDL-ESM4", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 19],
-    ["CMIP6", "INM-CM4-8", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 20],
-    ["CMIP6", "INM-CM5-0", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 21],
-    ["CMIP6", "IPSL-CM6A-LR", "SSP3-7.0 (2015-2100)", None, CMIP6_FUTURE, 22],
-    ["CMIP6", "CESM2-WACCM", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 24],
-    ["CMIP6", "CNRM-CM6-1", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 25],
-    ["CMIP6", "CNRM-ESM2-1", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 26],
-    ["CMIP6", "EC-Earth3", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 27],
-    ["CMIP6", "EC-Earth3-Veg-LR", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 28],
-    ["CMIP6", "GFDL-ESM4", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 29],
-    ["CMIP6", "INM-CM4-8", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 30],
-    ["CMIP6", "INM-CM5-0", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 31],
-    ["CMIP6", "IPSL-CM6A-LR", "SSP2-4.5 (2015-2100)", None, CMIP6_FUTURE, 32],
-    ["Large Ensemble", "GFDL-SPEAR-MED", "Historical (1980-2014)", None, GFDL_SPEAR_MED_HISTORICAL, 33],
-    ["Large Ensemble", "GFDL-SPEAR-MED", "SSP5-8.5 (2015-2100)", None, GFDL_SPEAR_MED_HISTORICAL, 34]
+    ["CMIP6", "IPSL-CM6A-LR", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 12]
 ]
 
 data_structure = [["Collection", "Dataset", "Scenario", "Metric", "file", "id"]]
