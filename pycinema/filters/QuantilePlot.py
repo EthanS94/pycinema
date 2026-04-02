@@ -134,10 +134,25 @@ class QuantilePlot(Filter):
         # -----------------------------
         # model prep
         # -----------------------------
+        gen_time_string = True
         for row in table[1:]:
             rc = int(str(row[rc_col]).split(" ")[0])
             # Rechunk so time is a single chunk (improves performance of quantile over time)
             ds = row[ds_col].chunk({"time": -1})
+
+            # one time only -- generate time string to use in plot
+            if gen_time_string:
+                tmin = ds.time.min().item()
+                tmax = ds.time.max().item()
+
+                tmin_str = f"{tmin.year:04d}-{tmin.month:02d}-{tmin.day:02d}"
+                tmax_str = f"{tmax.year:04d}-{tmax.month:02d}-{tmax.day:02d}"
+                if tmin_str != tmax_str:
+                    title_time = str(tmin_str + ' -- ' + tmax_str)
+                else:
+                    title_time = str(tmin_str)
+
+                gen_time_string = False
 
             # Compute quantile once for the full dataset
             q = ds.quantile(quantile_value, dim="time").compute()
@@ -146,13 +161,13 @@ class QuantilePlot(Filter):
                 # One dataset, many models
                 for model_name in q.model.values:
                     quants_ds_dict[rc].append({
-                        "label": str(model_name),
+                        "label": str(model_name + ' -- ' + row[scen_col]),
                         "q": q.sel(model=model_name)
                     })
             else:
                 # One dataset, one model
                 quants_ds_dict[rc].append({
-                    "label": row[mn_col],
+                    "label": str(row[mn_col] + ' -- ' + row[scen_col]),
                     "q": q
                 })
 
@@ -260,8 +275,8 @@ class QuantilePlot(Filter):
             rc_count += 1
 
         f.suptitle(
-            f"{int(quantile_value * 100)}th Percentile Precip. Metrics",
-            fontsize=45
+            f"{int(quantile_value * 100)}th Percentile Precip. Metrics ({title_time})",
+            fontsize=35
         )
 
         f.canvas.draw()
