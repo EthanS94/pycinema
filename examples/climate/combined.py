@@ -73,6 +73,7 @@ QuantilePlot_0 = pycinema.filters.QuantilePlot()
 DSTimeSample_0 = pycinema.filters.DSTimeSample()
 DSLatLonSample_0 = pycinema.filters.DSLatLonSample()
 ImageView_0 = pycinema.filters.ImageView()
+TableMetadataJSON_0 = pycinema.filters.TableMetadataJSON()
 
 # properties
 ParallelCoordinates_0.inputs.table.set(data_structure, False)
@@ -86,6 +87,7 @@ DSLatLonSample_0.inputs.table.set(DSTimeSample_0.outputs.table, False)
 QuantilePlot_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
 ImageView_0.inputs.images.set(QuantilePlot_0.outputs.images, False)
 ImageView_0.inputs.selection.set([], False)
+TableMetadataJSON_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
 
 # layout
 tabFrame1 = pycinema.theater.TabFrame()
@@ -150,6 +152,7 @@ s_StippleCompare_0 = pycinema.filters.StippleCompare()
 s_DSTimeSample_0 = pycinema.filters.DSTimeSample()
 s_DSLatLonSample_0 = pycinema.filters.DSLatLonSample()
 s_ImageView_0 = pycinema.filters.ImageView()
+s_TableMetadataJSON_0 = pycinema.filters.TableMetadataJSON()
 
 # properties
 s_ParallelCoordinates_0.inputs.table.set(s_data_structure, False)
@@ -163,6 +166,7 @@ s_DSLatLonSample_0.inputs.table.set(s_DSTimeSample_0.outputs.table, False)
 s_StippleCompare_0.inputs.table.set(s_DSLatLonSample_0.outputs.table, False)
 s_ImageView_0.inputs.images.set(s_StippleCompare_0.outputs.images, False)
 s_ImageView_0.inputs.selection.set([], False)
+s_TableMetadataJSON_0.inputs.table.set(s_DSLatLonSample_0.outputs.table, False)
 
 # layout
 s_splitFrame2 = pycinema.theater.SplitFrame()

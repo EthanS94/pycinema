@@ -49,6 +49,7 @@ from .ShaderPointAO import *
 from .SqliteDatabaseReader import *
 from .StippleCompare import *
 from .TableWriter import *
+from .TableMetadataJSON import *
 from .TableView import *
 from .TextEditor import *
 from .TextFileReader import *
