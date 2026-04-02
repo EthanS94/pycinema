@@ -45,6 +45,23 @@ class ZarrTimeSpan(Filter):
     # accept YYYY-MM-DD
     return datetime.strptime(s.strip(), "%Y-%m-%d").date()
 
+  @staticmethod
+  def _start_of_decade(d):
+    year = (d.year // 10) * 10
+    return datetime(year, 1, 1).date()
+
+  @staticmethod
+  def _snap_to_decade(d):
+    year = round(d.year / 10) * 10
+    return datetime(year, 1, 1).date()
+
+  def _decade_index_to_date(self, i, start_decade_date):
+    year = start_decade_date.year + int(i) * 10
+    return datetime(year, 1, 1).date()
+
+  def _date_to_decade_index(self, d, start_decade_date):
+    return max(0, (d.year - start_decade_date.year) // 10)
+
   def get_selected_dates(self):
     ds = (self.inputs.state.get() or {}).get('date')
     if not ds:
@@ -53,13 +70,17 @@ class ZarrTimeSpan(Filter):
     base = ds['start_date']
     v = ds.get('V') or [0]
 
-    # Always ensure 2 values exist for range logic
     v0 = int(v[0]) if len(v) >= 1 else 0
     v1 = int(v[1]) if len(v) >= 2 else v0
 
     if ds.get('M', 'S') == 'S':
       d = base + timedelta(days=v0)
       return d, d
+
+    start_decade = ds['start_decade_date']
+    d0 = self._decade_index_to_date(v0, start_decade)
+    d1 = self._decade_index_to_date(v1, start_decade)
+    return d0, d1
 
     # threshold mode
     return (base + timedelta(days=v0),
@@ -89,6 +110,10 @@ class ZarrTimeSpan(Filter):
   def _ensure_date_state(self, start_date, end_date, reset_on_change=True):
     span = max(0, (end_date - start_date).days)
 
+    start_decade_date = datetime((start_date.year // 10) * 10, 1, 1).date()
+    end_decade_date = datetime((end_date.year // 10) * 10, 1, 1).date()
+    decade_span = max(0, (end_decade_date.year - start_decade_date.year) // 10)
+
     st = self.inputs.state.get() or {}
     prev = st.get('date')
 
@@ -106,20 +131,20 @@ class ZarrTimeSpan(Filter):
     ds['start_date'] = start_date
     ds['end_date'] = end_date
     ds['span_days'] = span
+    ds['start_decade_date'] = start_decade_date
+    ds['end_decade_date'] = end_decade_date
+    ds['span_decades'] = decade_span
 
     mode = ds.get('M', 'S')
     v = ds.get('V') or [0]
 
-    # normalize length BEFORE clamping
-    if mode == 'O':  # range needs 2
+    if mode == 'O':
       v0 = int(v[0]) if len(v) >= 1 else 0
       v1 = int(v[1]) if len(v) >= 2 else v0
-      v = [v0, v1]
-    else:            # single needs 1
-      v = [int(v[0]) if len(v) else 0]
+      v = [min(max(v0, 0), decade_span), min(max(v1, 0), decade_span)]
+    else:
+      v = [min(max(int(v[0]) if len(v) else 0, 0), span)]
 
-    # clamp into new bounds
-    v = [min(max(int(x), 0), span) for x in v]
     ds['V'] = v
 
     st['date'] = ds
@@ -260,12 +285,12 @@ class ZarrTimeSpan(Filter):
       try:
         d0 = self._parse_date(w.edit_start.text())
         d1 = self._parse_date(w.edit_end.text())
-        i0 = self._d2i(d0, ds['start_date'])
-        i1 = self._d2i(d1, ds['start_date'])
+        i0 = self._date_to_decade_index(d0, ds['start_decade_date'])
+        i1 = self._date_to_decade_index(d1, ds['start_decade_date'])
       except Exception:
         return
-      lo = min(max(min(i0, i1), 0), ds['span_days'])
-      hi = min(max(max(i0, i1), 0), ds['span_days'])
+      lo = min(max(min(i0, i1), 0), ds['span_decades'])
+      hi = min(max(max(i0, i1), 0), ds['span_decades'])
       ds['V'] = [lo, hi]
       st['date'] = ds
       self.inputs.state.set(st)
@@ -357,7 +382,17 @@ class ZarrTimeSpan(Filter):
     self.ignore = True
 
     w.single.setRange(0, span)
-    w.range.setRange(0, span)
+    w.single.setSingleStep(1)
+    w.single.setPageStep(30)
+
+    if mode == 'O':
+      w.range.setRange(0, ds['span_decades'])
+      w.range.setSingleStep(1)
+      w.range.setPageStep(1)
+    else:
+      w.range.setRange(0, span)
+      w.range.setSingleStep(1)
+      w.range.setPageStep(30)
 
     w.lat.setRange(-90, 90)
     w.lon.setRange(-180, 180)
@@ -379,8 +414,9 @@ class ZarrTimeSpan(Filter):
       lo = int(vv[0])
       hi = int(vv[1] if len(vv) > 1 else vv[0])
       w.range.setValue((lo, hi))
-      w.edit_start.setText(self._i2d(lo, start_date).isoformat())
-      w.edit_end.setText(self._i2d(hi, start_date).isoformat())
+      decade_base = ds['start_decade_date']
+      w.edit_start.setText(self._decade_index_to_date(lo, decade_base).isoformat())
+      w.edit_end.setText(self._decade_index_to_date(hi, decade_base).isoformat())
 
     lat = st['lat']['V']
     lon = st['lon']['V']
