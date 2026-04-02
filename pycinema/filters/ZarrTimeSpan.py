@@ -63,37 +63,33 @@ class ZarrTimeSpan(Filter):
     return max(0, (d.year - start_decade_date.year) // 10)
 
   def get_selected_dates(self):
-    ds = (self.inputs.state.get() or {}).get('date')
-    if not ds:
-      return None, None
+      ds = (self.inputs.state.get() or {}).get('date')
+      if not ds:
+          return None, None
 
-    base = ds['start_date']
-    v = ds.get('V') or [0]
+      base = ds['start_date']
+      v = ds.get('V') or [0]
 
-    v0 = int(v[0]) if len(v) >= 1 else 0
-    v1 = int(v[1]) if len(v) >= 2 else v0
+      v0 = int(v[0]) if len(v) >= 1 else 0
+      v1 = int(v[1]) if len(v) >= 2 else v0
 
-    if ds.get('M', 'S') == 'S':
-        d = base + timedelta(days=v0)
-        return d, d
+      if ds.get('M', 'S') == 'S':
+          d = base + timedelta(days=v0)
+          return d, d
 
-    # prefer exact typed threshold dates if present
-    t0 = ds.get('T0')
-    t1 = ds.get('T1')
-    if t0 and t1:
-        try:
-            return self._parse_date(t0), self._parse_date(t1)
-        except Exception:
-            pass
+      # threshold mode: use exact typed dates first
+      t0 = ds.get('T0')
+      t1 = ds.get('T1')
+      if t0 and t1:
+          try:
+              return self._parse_date(t0), self._parse_date(t1)
+          except Exception:
+              pass
 
-    start_decade = ds['start_decade_date']
-    d0 = self._decade_index_to_date(v0, start_decade)
-    d1 = self._decade_index_to_date(v1, start_decade)
-    return d0, d1
-
-    # threshold mode
-    return (base + timedelta(days=v0),
-            base + timedelta(days=v1))
+      start_decade = ds['start_decade_date']
+      d0 = self._decade_index_to_date(v0, start_decade)
+      d1 = self._decade_index_to_date(v1, start_decade)
+      return d0, d1
 
   def to_cftime(self, t):
     # unwrap numpy arrays / xarray scalar containers
@@ -117,56 +113,67 @@ class ZarrTimeSpan(Filter):
     )
 
   def _ensure_date_state(self, start_date, end_date, reset_on_change=True):
-    span = max(0, (end_date - start_date).days)
+      span = max(0, (end_date - start_date).days)
 
-    start_decade_date = datetime((start_date.year // 10) * 10, 1, 1).date()
-    end_decade_date = datetime((end_date.year // 10) * 10, 1, 1).date()
-    decade_span = max(0, (end_decade_date.year - start_decade_date.year) // 10)
+      start_decade_date = datetime((start_date.year // 10) * 10, 1, 1).date()
+      end_decade_date = datetime((end_date.year // 10) * 10, 1, 1).date()
+      decade_span = max(0, (end_decade_date.year - start_decade_date.year) // 10)
 
-    st = self.inputs.state.get() or {}
-    prev = st.get('date')
+      st = self.inputs.state.get() or {}
+      prev = st.get('date')
 
-    bounds_changed = (
-      prev is None or
-      prev.get('start_date') != start_date or
-      prev.get('end_date') != end_date
-    )
+      bounds_changed = (
+          prev is None or
+          prev.get('start_date') != start_date or
+          prev.get('end_date') != end_date
+      )
 
-    if reset_on_change and bounds_changed:
-      ds = {'M': 'O', 'V': [0]}
-    else:
-      ds = prev or {'M': 'O', 'V': [0]}
+      default_hi = min(1, decade_span)
 
-    if 'T0' not in ds:
-        ds['T0'] = None
-    if 'T1' not in ds:
-        ds['T1'] = None
+      if reset_on_change and bounds_changed:
+          ds = {'M': 'O', 'V': [0, default_hi]}
+      else:
+          ds = prev or {'M': 'O', 'V': [0, default_hi]}
 
-    ds['start_date'] = start_date
-    ds['end_date'] = end_date
-    ds['span_days'] = span
-    ds['start_decade_date'] = start_decade_date
-    ds['end_decade_date'] = end_decade_date
-    ds['span_decades'] = decade_span
+      if 'T0' not in ds:
+          ds['T0'] = None
+      if 'T1' not in ds:
+          ds['T1'] = None
 
-    mode = ds.get('M', 'S')
-    v = ds.get('V') or [0]
+      ds['start_date'] = start_date
+      ds['end_date'] = end_date
+      ds['span_days'] = span
+      ds['start_decade_date'] = start_decade_date
+      ds['end_decade_date'] = end_decade_date
+      ds['span_decades'] = decade_span
 
-    if mode == 'S':
-        ds['T0'] = None
-        ds['T1'] = None
+      mode = ds.get('M', 'S')
+      v = ds.get('V') or [0]
 
-    if mode == 'O':
-      v0 = int(v[0]) if len(v) >= 1 else 0
-      v1 = int(v[1]) if len(v) >= 2 else v0
-      v = [min(max(v0, 0), decade_span), min(max(v1, 0), decade_span)]
-    else:
-      v = [min(max(int(v[0]) if len(v) else 0, 0), span)]
+      if mode == 'S':
+          ds['T0'] = None
+          ds['T1'] = None
+          v = [int(v[0]) if len(v) else 0]
+          v = [min(max(v[0], 0), span)]
+      else:
+          v0 = int(v[0]) if len(v) >= 1 else 0
+          v1 = int(v[1]) if len(v) >= 2 else min(v0 + 1, decade_span)
+          v0 = min(max(v0, 0), decade_span)
+          v1 = min(max(v1, 0), decade_span)
 
-    ds['V'] = v
+          if v1 == v0 and v0 < decade_span:
+              v1 = v0 + 1
 
-    st['date'] = ds
-    self.inputs.state.set(st)
+          v = [v0, v1]
+
+          if ds['T0'] is None:
+              ds['T0'] = self._decade_index_to_date(v0, start_decade_date).isoformat()
+          if ds['T1'] is None:
+              ds['T1'] = self._decade_index_to_date(v1, start_decade_date).isoformat()
+
+      ds['V'] = v
+      st['date'] = ds
+      self.inputs.state.set(st)
 
   # -------- widgets --------
   def generateWidgets(self):
@@ -251,24 +258,29 @@ class ZarrTimeSpan(Filter):
 
     # ---- callbacks that only touch state ----
     def set_mode(checked):
-      if self.ignore: return
-      st = deepcopy(self.inputs.state.get()) or {}
-      ds = st.get('date', {})
-      ds['M'] = 'O' if checked else 'S'
-      vv = ds.get('V', [0])
+        if self.ignore:
+            return
 
-      if checked:
-          v0 = vv[0]
-          if len(vv) > 1:
-              v1 = vv[1]
-          else:
-              v1 = min(v0 + 1, ds.get('span_decades', v0 + 1))
-          ds['V'] = [v0, v1]
-      else:
-          ds['V'] = [vv[0]]
+        st = deepcopy(self.inputs.state.get()) or {}
+        ds = st.get('date', {})
+        ds['M'] = 'O' if checked else 'S'
+        vv = ds.get('V', [0])
 
-      st['date'] = ds
-      self.inputs.state.set(st)
+        if checked:
+            v0 = int(vv[0]) if len(vv) else 0
+            v1 = int(vv[1]) if len(vv) > 1 else min(v0 + 1, ds.get('span_decades', v0 + 1))
+            ds['V'] = [v0, v1]
+
+            decade_base = ds['start_decade_date']
+            ds['T0'] = self._decade_index_to_date(v0, decade_base).isoformat()
+            ds['T1'] = self._decade_index_to_date(v1, decade_base).isoformat()
+        else:
+            ds['V'] = [int(vv[0]) if len(vv) else 0]
+            ds['T0'] = None
+            ds['T1'] = None
+
+        st['date'] = ds
+        self.inputs.state.set(st)
 
     def set_single_slider(v):
       if self.ignore: return
@@ -309,26 +321,46 @@ class ZarrTimeSpan(Filter):
       self.inputs.state.set(st)
 
     def set_range_texts():
-      if self.ignore: return
-      st = deepcopy(self.inputs.state.get()) or {}
-      ds = st.get('date')
-      if not ds: return
-      try:
-        d0 = self._parse_date(w.edit_start.text())
-        d1 = self._parse_date(w.edit_end.text())
-        i0 = self._date_to_decade_index(d0, ds['start_decade_date'])
-        i1 = self._date_to_decade_index(d1, ds['start_decade_date'])
-      except Exception:
-        return
-      # preserve exactly what the user typed
-      ds['T0'] = d0.isoformat()
-      ds['T1'] = d1.isoformat()
+        if self.ignore:
+            return
 
-      lo = min(max(min(i0, i1), 0), ds['span_decades'])
-      hi = min(max(max(i0, i1), 0), ds['span_decades'])
-      ds['V'] = [lo, hi]
-      st['date'] = ds
-      self.inputs.state.set(st)
+        st = deepcopy(self.inputs.state.get()) or {}
+        ds = st.get('date')
+        if not ds:
+            return
+
+        try:
+            d0 = self._parse_date(w.edit_start.text())
+            d1 = self._parse_date(w.edit_end.text())
+        except Exception:
+            return
+
+        # sort exact typed dates
+        if d0 <= d1:
+            typed_lo, typed_hi = d0, d1
+        else:
+            typed_lo, typed_hi = d1, d0
+
+        # preserve exactly what user typed
+        ds['T0'] = typed_lo.isoformat()
+        ds['T1'] = typed_hi.isoformat()
+
+        # also update slider state so UI/filter stay in sync
+        i0 = self._date_to_decade_index(typed_lo, ds['start_decade_date'])
+        i1 = self._date_to_decade_index(typed_hi, ds['start_decade_date'])
+
+        lo = min(max(i0, 0), ds['span_decades'])
+        hi = min(max(i1, 0), ds['span_decades'])
+
+        # avoid zero-width threshold range if possible
+        if hi == lo and lo < ds['span_decades']:
+            hi = lo + 1
+
+        ds['V'] = [lo, hi]
+        ds['M'] = 'O'
+
+        st['date'] = ds
+        self.inputs.state.set(st)
 
     def set_lat(v):
         if self.ignore: return
