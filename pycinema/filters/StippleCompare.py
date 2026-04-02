@@ -40,6 +40,12 @@ def build_land_mask(lons, lats):
 
     return mask
 
+def collapse_member_dims(x, mean_dims=("members", "member", "realization")):
+    dims_to_mean = [d for d in mean_dims if d in x.dims]
+    if dims_to_mean:
+        x = x.mean(dim=dims_to_mean)
+    return x
+
 class WinkelTripel(ccrs._WarpedRectangularProjection):
 	"""
 	Winkel-Tripel projection implementation for Cartopy
@@ -119,7 +125,7 @@ class StippleCompare(Filter):
         lats = table[1][lat_col]
 
         # get lon from table
-        lon_col = next((i for i, h in enumerate(table[0]) if h == "Latitude"), None)
+        lon_col = next((i for i, h in enumerate(table[0]) if h == "Longitude"), None)
         if lon_col is None:
             self.outputs.images.set([])
             return 1
@@ -176,8 +182,10 @@ class StippleCompare(Filter):
                 gen_time_string = False
 
             # Compute quantile once for the full dataset
-            print(f"Calulating quantile for historical models")
+            print(f"Calulating quantile for {row[mn_col]}")
             q = ds.quantile(quantile_value, dim="time").compute()
+            # If the dataset has members, collapse them to the mean
+            q = collapse_member_dims(q)
 
             if "model" in q.dims:
                 # One dataset, many models
@@ -206,8 +214,10 @@ class StippleCompare(Filter):
             ds = row[ds_col].chunk({"time": -1})
 
             # Compute quantile once for the full dataset
-            print(f"Calulating quantile for historical observations")
+            print(f"Calulating quantile for {row[mn_col]}")
             q = ds.quantile(quantile_value, dim="time").compute()
+            # If the dataset has members, collapse them to the mean
+            q = collapse_member_dims(q)
 
             if "model" in q.dims:
                 for model_name in q.model.values:
