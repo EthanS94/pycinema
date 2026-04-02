@@ -28,7 +28,8 @@ zarr_stores = [
     ["CMIP6", "GFDL-ESM4", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 9],
     ["CMIP6", "INM-CM4-8", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 10],
     ["CMIP6", "INM-CM5-0", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 11],
-    ["CMIP6", "IPSL-CM6A-LR", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 12]
+    ["CMIP6", "IPSL-CM6A-LR", "Historical (1980-2014)", None, CMIP6_HISTORICAL, 12],
+    ["Large Ensemble", "GFDL-SPEAR-MED", "Historical (1980-2014)", None, GFDL_SPEAR_MED_HISTORICAL, 13]
 ]
 
 data_structure = [["Collection", "Dataset", "Scenario", "Metric", "file", "id"]]
