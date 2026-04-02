@@ -46,6 +46,202 @@ def collapse_member_dims(x, mean_dims=("members", "member", "realization")):
         x = x.mean(dim=dims_to_mean)
     return x
 
+def unique_in_order(values):
+    seen = set()
+    out = []
+    for v in values:
+        if v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+def build_index_lookup(values):
+    return {value: i for i, value in enumerate(values)}
+
+def score_orientation(plot_entries, unique_values, rows_dim, cols_dim, grid_dim=None):
+    """
+    Score a layout orientation.
+
+    Lower is better.
+
+    The score penalizes:
+    - empty cells
+    - sparse columns more heavily than sparse rows
+    - completely empty columns/rows
+    - uneven fill patterns
+
+    This helps avoid layouts where a scenario becomes a lonely mostly-empty column.
+    """
+    if grid_dim is None:
+        grid_values = [None]
+    else:
+        grid_values = unique_values[grid_dim]
+
+    total_score = 0.0
+
+    for grid_value in grid_values:
+        row_values = unique_values[rows_dim]
+        col_values = unique_values[cols_dim]
+
+        row_lookup = build_index_lookup(row_values)
+        col_lookup = build_index_lookup(col_values)
+
+        occupancy = np.zeros((len(row_values), len(col_values)), dtype=int)
+
+        for entry in plot_entries:
+            if grid_dim is not None and entry[grid_dim] != grid_value:
+                continue
+
+            r = row_lookup[entry[rows_dim]]
+            c = col_lookup[entry[cols_dim]]
+            occupancy[r, c] = 1
+
+        row_fills = occupancy.sum(axis=1)
+        col_fills = occupancy.sum(axis=0)
+
+        empty_cells = occupancy.size - occupancy.sum()
+
+        sparse_rows = np.sum(row_fills <= 1)
+        sparse_cols = np.sum(col_fills <= 1)
+
+        empty_rows = np.sum(row_fills == 0)
+        empty_cols = np.sum(col_fills == 0)
+
+        # unevenness
+        row_std = float(np.std(row_fills)) if len(row_fills) > 1 else 0.0
+        col_std = float(np.std(col_fills)) if len(col_fills) > 1 else 0.0
+
+        # Weight sparse columns more heavily than sparse rows.
+        # This tends to prefer scenario-as-rows if a scenario column is mostly empty.
+        score = (
+            1.0 * empty_cells +
+            1.5 * sparse_rows +
+            4.0 * sparse_cols +
+            3.0 * empty_rows +
+            6.0 * empty_cols +
+            0.5 * row_std +
+            1.0 * col_std
+        )
+
+        total_score += score
+
+    return total_score
+
+def choose_layout(plot_entries, unique_values, priority=("dataset", "scenario", "rc")):
+    """
+    Decide which dimension becomes rows, columns, and grid (separate figures).
+
+    Rules:
+    - only dimensions with >1 unique value are considered active
+    - 0 active dims -> single axes
+    - 1 active dim  -> rows only
+    - 2 active dims -> choose better of the two row/col orientations
+    - 3 active dims -> keep the third priority dim as separate figure grid,
+                       then choose better row/col orientation for the first two
+    """
+    counts = {k: len(v) for k, v in unique_values.items()}
+    active_dims = [dim for dim in priority if counts.get(dim, 1) > 1]
+
+    layout = {
+        "rows_dim": None,
+        "cols_dim": None,
+        "grid_dim": None,
+        "nrows": 1,
+        "ncols": 1,
+        "ngrids": 1,
+        "active_dims": active_dims,
+        "counts": counts,
+    }
+
+    if len(active_dims) == 0:
+        return layout
+
+    if len(active_dims) == 1:
+        layout["rows_dim"] = active_dims[0]
+        layout["nrows"] = counts[active_dims[0]]
+        return layout
+
+    if len(active_dims) == 2:
+        d1, d2 = active_dims
+
+        score_12 = score_orientation(plot_entries, unique_values, d1, d2, None)
+        score_21 = score_orientation(plot_entries, unique_values, d2, d1, None)
+
+        if score_12 <= score_21:
+            layout["rows_dim"] = d1
+            layout["cols_dim"] = d2
+        else:
+            layout["rows_dim"] = d2
+            layout["cols_dim"] = d1
+
+        layout["nrows"] = counts[layout["rows_dim"]]
+        layout["ncols"] = counts[layout["cols_dim"]]
+        return layout
+
+    # Three or more active dims: keep the third priority dim as grid,
+    # and score the two row/col orientations of the first two dims.
+    d1, d2, d3 = active_dims[:3]
+
+    score_12 = score_orientation(plot_entries, unique_values, d1, d2, d3)
+    score_21 = score_orientation(plot_entries, unique_values, d2, d1, d3)
+
+    if score_12 <= score_21:
+        layout["rows_dim"] = d1
+        layout["cols_dim"] = d2
+    else:
+        layout["rows_dim"] = d2
+        layout["cols_dim"] = d1
+
+    layout["grid_dim"] = d3
+    layout["nrows"] = counts[layout["rows_dim"]]
+    layout["ncols"] = counts[layout["cols_dim"]]
+    layout["ngrids"] = counts[d3]
+
+    print("Layout orientation scores:")
+    print(f"  rows={d1}, cols={d2}, grid={d3} -> {score_12}")
+    print(f"  rows={d2}, cols={d1}, grid={d3} -> {score_21}")
+
+    return layout
+
+def set_outer_titles(fig, axes, layout, unique_values, grid_value=None, fz=26, pad=20):
+    rows_dim = layout["rows_dim"]
+    cols_dim = layout["cols_dim"]
+    grid_dim = layout["grid_dim"]
+
+    if cols_dim is not None:
+        for col_idx, col_value in enumerate(unique_values[cols_dim]):
+            axes[0, col_idx].set_title(str(col_value), fontsize=fz, pad=pad)
+
+    if rows_dim is not None:
+        for row_idx, row_value in enumerate(unique_values[rows_dim]):
+            axes[row_idx, 0].text(
+                -0.15,
+                0.5,
+                str(row_value),
+                rotation=90,
+                va="center",
+                ha="right",
+                transform=axes[row_idx, 0].transAxes,
+                fontsize=22
+            )
+
+    if grid_dim is not None and grid_value is not None:
+        fig.text(
+            0.5,
+            0.97,
+            f"{grid_value}",
+            ha="center",
+            va="top",
+            fontsize=fz
+        )
+
+def hide_unused_axes(axes, used_positions):
+    nrows, ncols = axes.shape
+    for r in range(nrows):
+        for c in range(ncols):
+            if (r, c) not in used_positions:
+                axes[r, c].set_visible(False)
+
 class WinkelTripel(ccrs._WarpedRectangularProjection):
 	"""
 	Winkel-Tripel projection implementation for Cartopy
@@ -131,18 +327,50 @@ class QuantilePlot(Filter):
             return 1
         lons = table[1][lon_col]
 
+        # create table to use for subplot orientation
+        subplot_counts = {
+            "dataset": 0,
+            "scenario": 0,
+            "rc": 0,
+        }
+        dataset_subplots = []
+        scenario_subplots = []
+        rc_subplots = []
+        for row in table[1:]:
+            if row[mn_col] not in dataset_subplots:
+                subplot_counts["dataset"] += 1
+                dataset_subplots.append(row[mn_col])
+            if row[scen_col] not in scenario_subplots:
+                subplot_counts["scenario"] += 1
+                scenario_subplots.append(row[scen_col])
+            if row[rc_col] not in rc_subplots:
+                subplot_counts["rc"] += 1
+                rc_subplots.append(row[rc_col])
+
+        # Active dimensions in plot
+        active_dims = [name for name, count in subplot_counts.items() if count > 1]
+
         quantile_value = 0.95
 
         # For each accumulation, store a list of plotting entries:
-        # {"label": ..., "q": ..., "mask": ...}
-        quants_ds_dict = {1: [], 3: [], 5: []}
+        # {"label": ..., "q": ..., "dataset": ..., "scenario": ..., "rc": ...}
+        quants_ds_dict = {}
 
         # -----------------------------
         # model prep
         # -----------------------------
         gen_time_string = True
         for row in table[1:]:
-            rc = int(str(row[rc_col]).split(" ")[0])
+            rc_raw = row[rc_col]
+            rc_match = re.match(r"(\d+)", str(rc_raw))
+            if rc_match is None:
+                print(f"Could not parse accumulation from Metric value: {rc_raw}")
+                continue
+            rc = int(rc_match.group(1))
+
+            if rc not in quants_ds_dict:
+                quants_ds_dict[rc] = []
+
             # Rechunk so time is a single chunk (improves performance of quantile over time)
             ds = row[ds_col].chunk({"time": -1})
 
@@ -170,14 +398,20 @@ class QuantilePlot(Filter):
                 # One dataset, many models
                 for model_name in q.model.values:
                     quants_ds_dict[rc].append({
-                        "label": str(model_name + ' -- ' + row[scen_col]),
-                        "q": q.sel(model=model_name)
+                        "label": str(model_name),
+                        "q": q.sel(model=model_name),
+                        "dataset": str(model_name),
+                        "scenario": str(row[scen_col]),
+                        "rc": str(row[rc_col]),
                     })
             else:
                 # One dataset, one model
                 quants_ds_dict[rc].append({
-                    "label": str(row[mn_col] + ' -- ' + row[scen_col]),
-                    "q": q
+                    "label": str(row[mn_col]),
+                    "q": q,
+                    "dataset": str(row[mn_col]),
+                    "scenario": str(row[scen_col]),
+                    "rc": str(row[rc_col]),
                 })
 
         # -----------------------------
@@ -201,17 +435,46 @@ class QuantilePlot(Filter):
         lons_mask = ((lons + 180) % 360) - 180
         land_mask = build_land_mask(lons_mask, lats)
 
-        # subplot rows is accumulation count with data
-        subplot_dim_row = sum(1 for v in quants_ds_dict.values() if v)
+        # -----------------------------
+        # Build unique values from actual plotting entries
+        # -----------------------------
+        plot_entries = []
+        for rc, entries in quants_ds_dict.items():
+            plot_entries.extend(entries)
 
-        # subplot columns is max number of models in any accumulation
-        subplot_dim_column = max(len(quants_ds_dict[1]), len(quants_ds_dict[3]), len(quants_ds_dict[5]))
-        if subplot_dim_row == 0 or subplot_dim_column == 0:
+        if not plot_entries:
             self.outputs.images.set([])
             return 1
 
-        row_size = subplot_dim_row * 20
-        column_size = subplot_dim_column * 10
+        unique_values = {
+            "dataset": unique_in_order(entry["dataset"] for entry in plot_entries),
+            "scenario": unique_in_order(entry["scenario"] for entry in plot_entries),
+            "rc": unique_in_order(entry["rc"] for entry in plot_entries),
+        }
+
+        layout = choose_layout(plot_entries, unique_values, priority=("dataset", "scenario", "rc"))
+
+        print("Unique plotting values:")
+        print(unique_values)
+        print("Chosen layout:")
+        print(layout)
+
+        row_lookup = (
+            build_index_lookup(unique_values[layout["rows_dim"]])
+            if layout["rows_dim"] is not None else {}
+        )
+        col_lookup = (
+            build_index_lookup(unique_values[layout["cols_dim"]])
+            if layout["cols_dim"] is not None else {}
+        )
+        grid_lookup = (
+            build_index_lookup(unique_values[layout["grid_dim"]])
+            if layout["grid_dim"] is not None else {}
+        )
+
+        if layout["nrows"] == 0 or layout["ncols"] == 0 or layout["ngrids"] == 0:
+            self.outputs.images.set([])
+            return 1
 
         #proj = WinkelTripel()
         proj = ccrs.PlateCarree()
@@ -225,14 +488,21 @@ class QuantilePlot(Filter):
         stipple_size = 1
         stipple_spacing = 2
 
-        f, axes = plt.subplots(
-            subplot_dim_column,
-            subplot_dim_row,
-            figsize=(row_size, column_size),
-            facecolor="w",
-            squeeze=False,
-            subplot_kw=dict(projection=proj),
-        )
+        # Size scales with actual grid shape
+        row_size = layout["ncols"] * 10
+        column_size = layout["nrows"] * 5
+
+        figures = []
+        for _ in range(layout["ngrids"]):
+            f, axes = plt.subplots(
+                layout["nrows"],
+                layout["ncols"],
+                figsize=(row_size, column_size),
+                facecolor="w",
+                squeeze=False,
+                subplot_kw=dict(projection=proj),
+            )
+            figures.append((f, axes))
 
         # Extent for imshow
         x0 = float(lons.min())
@@ -242,62 +512,86 @@ class QuantilePlot(Filter):
         img_extent = [x0, x1, y0, y1]
 
         print("Plotting...")
-        rc_count = 0
-        for rc, entries in quants_ds_dict.items():
-            if not entries:
-                continue
+        used_positions_per_grid = [set() for _ in range(layout["ngrids"])]
 
-            for model_count, entry in enumerate(entries):
-                model = entry["q"]
-                label = entry["label"]
-                ax = axes[model_count, rc_count]
+        for entry in plot_entries:
+            if layout["rows_dim"] is None:
+                row_idx = 0
+            else:
+                row_idx = row_lookup[entry[layout["rows_dim"]]]
 
-                print(f"imshow on {label}")
-                data_land = model["pr"].where(land_mask)
+            if layout["cols_dim"] is None:
+                col_idx = 0
+            else:
+                col_idx = col_lookup[entry[layout["cols_dim"]]]
 
-                data_land.plot.imshow(
-                    ax=ax,
-                    robust=robust,
-                    cmap=cmap,
-                    transform=transform
-                )
+            if layout["grid_dim"] is None:
+                grid_idx = 0
+            else:
+                grid_idx = grid_lookup[entry[layout["grid_dim"]]]
 
-                axes[model_count, 0].text(
-                    -0.15,
-                    0.5,
-                    label,
-                    rotation=90,
-                    va="center",
-                    ha="right",
-                    transform=axes[model_count, 0].transAxes,
-                    fontsize=22
-                )
+            f, axes = figures[grid_idx]
+            ax = axes[row_idx, col_idx]
 
-                print(f"applying coastlines on {label}")
-                ax.coastlines(resolution="110m")
+            label = entry["label"]
+            model = entry["q"]
 
-            axes[0, rc_count].set_title(f"{rc}-Day Precp.", fontsize=fz, pad=pad)
-            rc_count += 1
+            print(f"imshow on {label} -> grid={grid_idx}, row={row_idx}, col={col_idx}")
+            data_land = model["pr"].where(land_mask)
 
-        f.suptitle(
-            f"{int(quantile_value * 100)}th Percentile Precip. Metrics ({title_time})",
-            fontsize=35
-        )
+            data_land.plot.imshow(
+                ax=ax,
+                robust=robust,
+                cmap=cmap,
+                transform=transform
+            )
 
-        f.canvas.draw()
+            print(f"applying coastlines on {label}")
+            ax.coastlines(resolution="110m")
+            used_positions_per_grid[grid_idx].add((row_idx, col_idx))
 
-        # Get width and height
-        w, h = f.canvas.get_width_height()
+        images = []
 
-        # Convert to numpy array (RGBA)
-        img = np.frombuffer(f.canvas.buffer_rgba(), dtype=np.uint8)
-        img = img.reshape((h, w, 4))
+        for grid_idx, (f, axes) in enumerate(figures):
+            grid_value = None
+            if layout["grid_dim"] is not None:
+                grid_value = unique_values[layout["grid_dim"]][grid_idx]
 
-        image = Image()
-        image.channels = {"rgba": img}
+            set_outer_titles(
+                f,
+                axes,
+                layout,
+                unique_values,
+                grid_value=grid_value,
+                fz=fz,
+                pad=pad,
+            )
 
-        self.outputs.images.set([image])
+            hide_unused_axes(axes, used_positions_per_grid[grid_idx])
+
+            f.suptitle(
+                f"{int(quantile_value * 100)}th Percentile Precip. Metrics ({title_time})",
+                fontsize=35,
+                y=0.93 if grid_value is not None else 0.98
+            )
+
+            f.tight_layout(rect=[0.04, 0.04, 0.98, 0.90])
+
+            f.canvas.draw()
+
+            # Get width and height
+            w, h = f.canvas.get_width_height()
+
+            # Convert to numpy array (RGBA)
+            img = np.frombuffer(f.canvas.buffer_rgba(), dtype=np.uint8)
+            img = img.reshape((h, w, 4))
+
+            image = Image()
+            image.channels = {"rgba": img}
+            images.append(image)
+
+            plt.close(f)
+
+        self.outputs.images.set(images)
 
         print("Done plotting.")
-
-        plt.close(f)
