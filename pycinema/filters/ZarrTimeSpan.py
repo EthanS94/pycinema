@@ -74,8 +74,17 @@ class ZarrTimeSpan(Filter):
     v1 = int(v[1]) if len(v) >= 2 else v0
 
     if ds.get('M', 'S') == 'S':
-      d = base + timedelta(days=v0)
-      return d, d
+        d = base + timedelta(days=v0)
+        return d, d
+
+    # prefer exact typed threshold dates if present
+    t0 = ds.get('T0')
+    t1 = ds.get('T1')
+    if t0 and t1:
+        try:
+            return self._parse_date(t0), self._parse_date(t1)
+        except Exception:
+            pass
 
     start_decade = ds['start_decade_date']
     d0 = self._decade_index_to_date(v0, start_decade)
@@ -128,6 +137,11 @@ class ZarrTimeSpan(Filter):
     else:
       ds = prev or {'M': 'O', 'V': [0]}
 
+    if 'T0' not in ds:
+        ds['T0'] = None
+    if 'T1' not in ds:
+        ds['T1'] = None
+
     ds['start_date'] = start_date
     ds['end_date'] = end_date
     ds['span_days'] = span
@@ -137,6 +151,10 @@ class ZarrTimeSpan(Filter):
 
     mode = ds.get('M', 'S')
     v = ds.get('V') or [0]
+
+    if mode == 'S':
+        ds['T0'] = None
+        ds['T1'] = None
 
     if mode == 'O':
       v0 = int(v[0]) if len(v) >= 1 else 0
@@ -232,16 +250,23 @@ class ZarrTimeSpan(Filter):
     main.addLayout(lon_row)
 
     # ---- callbacks that only touch state ----
-    # FIXME: when switching to threshold at min value,
-    #  can't move sliders. Guessing due to min value
-    #  slider being on top
     def set_mode(checked):
       if self.ignore: return
       st = deepcopy(self.inputs.state.get()) or {}
       ds = st.get('date', {})
       ds['M'] = 'O' if checked else 'S'
       vv = ds.get('V', [0])
-      ds['V'] = [vv[0], vv[-1] if len(vv) > 1 else vv[0]] if checked else [vv[0]]
+
+      if checked:
+          v0 = vv[0]
+          if len(vv) > 1:
+              v1 = vv[1]
+          else:
+              v1 = min(v0 + 1, ds.get('span_decades', v0 + 1))
+          ds['V'] = [v0, v1]
+      else:
+          ds['V'] = [vv[0]]
+
       st['date'] = ds
       self.inputs.state.set(st)
 
@@ -254,13 +279,19 @@ class ZarrTimeSpan(Filter):
       self.inputs.state.set(st)
 
     def set_range_slider(v):
-      if self.ignore: return
-      lo, hi = map(int, v)
-      st = deepcopy(self.inputs.state.get()) or {}
-      ds = st.get('date', {})
-      ds['V'] = [lo, hi]
-      st['date'] = ds
-      self.inputs.state.set(st)
+        if self.ignore:
+            return
+        lo, hi = map(int, v)
+        st = deepcopy(self.inputs.state.get()) or {}
+        ds = st.get('date', {})
+        ds['V'] = [lo, hi]
+
+        decade_base = ds['start_decade_date']
+        ds['T0'] = self._decade_index_to_date(lo, decade_base).isoformat()
+        ds['T1'] = self._decade_index_to_date(hi, decade_base).isoformat()
+
+        st['date'] = ds
+        self.inputs.state.set(st)
 
     def set_single_text():
       if self.ignore: return
@@ -289,6 +320,10 @@ class ZarrTimeSpan(Filter):
         i1 = self._date_to_decade_index(d1, ds['start_decade_date'])
       except Exception:
         return
+      # preserve exactly what the user typed
+      ds['T0'] = d0.isoformat()
+      ds['T1'] = d1.isoformat()
+
       lo = min(max(min(i0, i1), 0), ds['span_decades'])
       hi = min(max(max(i0, i1), 0), ds['span_decades'])
       ds['V'] = [lo, hi]
@@ -301,7 +336,7 @@ class ZarrTimeSpan(Filter):
         st = deepcopy(self.inputs.state.get()) or {}
         st['lat']['V'] = [lo, hi]
         self.inputs.state.set(st)
-    
+
     def set_lon(v):
         if self.ignore: return
         lo, hi = map(float, v)
@@ -320,7 +355,7 @@ class ZarrTimeSpan(Filter):
         lo, hi = sorted([lo, hi])
         st['lat']['V'] = [lo, hi]
         self.inputs.state.set(st)
-    
+
     def set_lon_text():
         if self.ignore: return
         st = deepcopy(self.inputs.state.get()) or {}
@@ -332,7 +367,7 @@ class ZarrTimeSpan(Filter):
         lo, hi = sorted([lo, hi])
         st['lon']['V'] = [lo, hi]
         self.inputs.state.set(st)
-    
+
     w.edit_lat_min.editingFinished.connect(set_lat_text)
     w.edit_lat_max.editingFinished.connect(set_lat_text)
     w.edit_lon_min.editingFinished.connect(set_lon_text)
@@ -403,35 +438,46 @@ class ZarrTimeSpan(Filter):
     w.edit_end.setVisible(mode == 'O')
 
     if mode == 'S':
-      i = int(vv[0])
-      w.single.setValue(i)
-      w.edit_single.setText(self._i2d(i, start_date).isoformat())
+        i = int(vv[0])
+        w.single.setValue(i)
+        w.edit_single.setText(self._i2d(i, start_date).isoformat())
     else:
-      lo = int(vv[0])
-      # vv[0] + 1 to make sure the range is shown when first activated
-      hi = int(vv[0] + 1 if vv[1] == vv[0] else vv[1] if len(vv) > 1 else vv[0])
-      w.range.setValue((lo, hi))
-      decade_base = ds['start_decade_date']
-      w.edit_start.setText(self._decade_index_to_date(lo, decade_base).isoformat())
-      w.edit_end.setText(self._decade_index_to_date(hi, decade_base).isoformat())
+        lo = int(vv[0])
+        hi = int(vv[0] + 1 if vv[1] == vv[0] else vv[1] if len(vv) > 1 else vv[0])
+        decade_base = ds['start_decade_date']
+
+        w.range.setValue((lo, hi))
+
+        typed0 = ds.get('T0')
+        typed1 = ds.get('T1')
+
+        if typed0 is not None:
+            w.edit_start.setText(typed0)
+        else:
+            w.edit_start.setText(self._decade_index_to_date(lo, decade_base).isoformat())
+
+        if typed1 is not None:
+            w.edit_end.setText(typed1)
+        else:
+            w.edit_end.setText(self._decade_index_to_date(hi, decade_base).isoformat())
 
     lat = st['lat']['V']
     lon = st['lon']['V']
-    
+
     self.ignore = True
-    
+
     w.lat.setValue(tuple(lat))
     w.lon.setValue(tuple(lon))
-    
+
     w.edit_lat_min.setText(str(lat[0]))
     w.edit_lat_max.setText(str(lat[1]))
-    
+
     w.edit_lon_min.setText(str(lon[0]))
     w.edit_lon_max.setText(str(lon[1]))
-    
+
     w.lat_label.setText(f"{lat[0]} → {lat[1]}")
     w.lon_label.setText(f"{lon[0]} → {lon[1]}")
-    
+
     self.ignore = False
 
   # -------- update --------
@@ -459,12 +505,12 @@ class ZarrTimeSpan(Filter):
         st['lat'] = {'V': [lat_min, lat_max], 'B': [lat_min, lat_max]}
     else:
         st['lat']['B'] = [lat_min, lat_max]
-    
+
     if 'lon' not in st:
         st['lon'] = {'V': [lon_min, lon_max], 'B': [lon_min, lon_max]}
     else:
         st['lon']['B'] = [lon_min, lon_max]
-    
+
     self.inputs.state.set(st)
 
     # compute start/end from filenames
