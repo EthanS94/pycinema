@@ -124,9 +124,9 @@ class ZarrTimeSpan(Filter):
     )
 
     if reset_on_change and bounds_changed:
-      ds = {'M': 'S', 'V': [0]}
+      ds = {'M': 'O', 'V': [0]}
     else:
-      ds = prev or {'M': 'S', 'V': [0]}
+      ds = prev or {'M': 'O', 'V': [0]}
 
     ds['start_date'] = start_date
     ds['end_date'] = end_date
@@ -176,7 +176,7 @@ class ZarrTimeSpan(Filter):
     w.edit_end.setPlaceholderText("end YYYY-MM-DD")
     w.edit_end.setMaximumWidth(140)
 
-    date_row.addWidget(w.toggle)
+    #date_row.addWidget(w.toggle)
     date_row.addWidget(w.single, 1)
     date_row.addWidget(w.range, 1)
     date_row.addWidget(w.edit_single)
@@ -338,9 +338,7 @@ class ZarrTimeSpan(Filter):
     w.edit_lon_min.editingFinished.connect(set_lon_text)
     w.edit_lon_max.editingFinished.connect(set_lon_text)
 
-    #w.lat.valueChanged.connect(set_lat)
     w.lat.valueChanged.connect(lambda v: w.lat_label.setText(f"{v[0]} → {v[1]}"))
-    #w.lon.valueChanged.connect(set_lon)
     w.lon.valueChanged.connect(lambda v: w.lon_label.setText(f"{v[0]} → {v[1]}"))
 
     w.lat.sliderReleased.connect(
@@ -352,11 +350,9 @@ class ZarrTimeSpan(Filter):
     )
 
     w.toggle.toggled.connect(set_mode)
-    #w.single.valueChanged.connect(set_single_slider)
     w.single.sliderReleased.connect(
       lambda: set_single_slider(w.single.value())
     )
-    #w.range.valueChanged.connect(set_range_slider)
     w.range.sliderReleased.connect(
       lambda: set_range_slider(w.range.value())
     )
@@ -412,7 +408,8 @@ class ZarrTimeSpan(Filter):
       w.edit_single.setText(self._i2d(i, start_date).isoformat())
     else:
       lo = int(vv[0])
-      hi = int(vv[1] if len(vv) > 1 else vv[0])
+      # vv[0] + 1 to make sure the range is shown when first activated
+      hi = int(vv[0] + 1 if vv[1] == vv[0] else vv[1] if len(vv) > 1 else vv[0])
       w.range.setValue((lo, hi))
       decade_base = ds['start_decade_date']
       w.edit_start.setText(self._decade_index_to_date(lo, decade_base).isoformat())
