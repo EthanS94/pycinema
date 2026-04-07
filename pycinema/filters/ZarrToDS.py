@@ -94,6 +94,14 @@ class ZarrToDS(Filter):
             self.outputs.table.set([])
             return 1
 
+        # get scenario from table
+        scen_col = next((i for i, h in enumerate(header) if h == "Scenario"), None)
+        if scen_col is None:
+            print("Scenario column (Scenario) not found in input table")
+            self._clear_cache()
+            self.outputs.table.set([])
+            return 1
+
         # If header changed, invalidate retained rows
         header_changed = self._prev_header != header
 
@@ -122,6 +130,14 @@ class ZarrToDS(Filter):
             zarr_file = row[file_col]
             rolling_c = row[rc_col]
 
+            possible_scenarios = {
+                "Historical (1980-2014)": "historical",
+                "SSP2-4.5 (2015-2100)": "ssp245",
+                "SSP3-7.0 (2015-2100)": "ssp370",
+                "SSP5-8.5 (2015-2100)": "ssp585"
+            }
+            scenario = possible_scenarios[row[scen_col]]
+
             print(f"reading {row[mn_col]} at {rolling_c} accumulation...")
 
             try:
@@ -133,7 +149,7 @@ class ZarrToDS(Filter):
                 new_output_rows.append(output_row)
                 continue
 
-            ds = zarr_to_ds(zarr_file, rolling_c, reuse=True)
+            ds = zarr_to_ds(zarr_file, rolling_c, scenario, reuse=False)
 
             if ds is not None:
                 try:
@@ -166,7 +182,7 @@ class ZarrToDS(Filter):
         self._prev_output_rows = []
 
 
-def zarr_to_ds(zarr_path, rolling_c=1, reuse=True):
+def zarr_to_ds(zarr_path, rolling_c=1, scenario=None, reuse=True):
     """
     Returns: xarray dataset by reading in zarr_path
     Caches base datasets by zarr_path.
@@ -186,7 +202,10 @@ def zarr_to_ds(zarr_path, rolling_c=1, reuse=True):
 
             # Select scenario if it exists
             if "scenario" in base_ds.dims:
-                base_ds = base_ds.isel(scenario=0)
+                if scenario == None:
+                    base_ds = base_ds.isel(scenario=0)
+                else:
+                    base_ds = base_ds.sel(scenario=scenario)
 
             # Normalize T12:00:0000 to T00:00:0000 so selection works better
             if "time" in base_ds.coords:

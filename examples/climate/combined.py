@@ -8,8 +8,7 @@ from copy import copy
 # pycinema settings
 PYCINEMA = { 'VERSION' : '3.2.0'}
 
-#base_zarr_dir = "/scratch/07644/oxygen/LANL_cleaned_data/interp_zarr_stores/"
-base_zarr_dir = "/Users/stam/projects/visRandD_2026/utaustin_collab/03242026/data/interp_zarr_stores/"
+base_zarr_dir = "/scratch/07644/oxygen/LANL_cleaned_data/interp_zarr_stores/"
 CMIP6_FUTURE = base_zarr_dir + "cmip6_future-scenario_pr_2015-2100.zarr"
 CMIP6_HISTORICAL = base_zarr_dir + "cmip6_historical_pr_1850-2014.zarr"
 CMIP6_OBS = base_zarr_dir + "obs_cmip6-interp_pr_1980-2023.zarr"
@@ -88,6 +87,7 @@ QuantilePlot_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
 ImageView_0.inputs.images.set(QuantilePlot_0.outputs.images, False)
 ImageView_0.inputs.selection.set([], False)
 TableMetadataJSON_0.inputs.table.set(DSLatLonSample_0.outputs.table, False)
+TableMetadataJSON_0.inputs.output_path.set("~/quantile_metadata.json", False)
 
 # layout
 tabFrame1 = pycinema.theater.TabFrame()
@@ -167,6 +167,7 @@ s_StippleCompare_0.inputs.table.set(s_DSLatLonSample_0.outputs.table, False)
 s_ImageView_0.inputs.images.set(s_StippleCompare_0.outputs.images, False)
 s_ImageView_0.inputs.selection.set([], False)
 s_TableMetadataJSON_0.inputs.table.set(s_DSLatLonSample_0.outputs.table, False)
+s_TableMetadataJSON_0.inputs.output_path.set("~/stipple_metadata.json", False)
 
 # layout
 s_splitFrame2 = pycinema.theater.SplitFrame()

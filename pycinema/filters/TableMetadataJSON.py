@@ -71,6 +71,7 @@ class TableMetadataJSON(Filter):
 
         table = self.inputs.table.get()
         output_path = self.inputs.output_path.get()
+        output_path = os.path.expanduser(output_path)
         deduplicate = self.inputs.deduplicate.get()
 
         tableExtent = getTableExtent(table)
@@ -89,6 +90,7 @@ class TableMetadataJSON(Filter):
         lat_col = col_idx.get("Latitude")
         lon_col = col_idx.get("Longitude")
         metric_col = col_idx.get("Metric")
+        scenario_col = col_idx.get("Scenario")
 
         required = {
             "Dataset": dataset_col,
@@ -97,6 +99,7 @@ class TableMetadataJSON(Filter):
             "Latitude": lat_col,
             "Longitude": lon_col,
             "Metric": metric_col,
+            "Scenario": scenario_col,
         }
 
         missing = [name for name, idx in required.items() if idx is None]
@@ -133,6 +136,7 @@ class TableMetadataJSON(Filter):
                 "lon_range": safe_list(row[lon_col]),
                 "accumulation_days": metric_info["days"],
                 "accumulation_label": metric_info["label"],
+                "scenario": row[scenario_col],
             }
 
             if deduplicate:
@@ -145,6 +149,7 @@ class TableMetadataJSON(Filter):
                     tuple(entry["lon_range"]) if isinstance(entry["lon_range"], list) else entry["lon_range"],
                     entry["accumulation_days"],
                     entry["accumulation_label"],
+                    entry["scenario"],
                 )
                 if dedupe_key in seen:
                     continue
