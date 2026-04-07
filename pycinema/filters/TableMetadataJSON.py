@@ -159,7 +159,7 @@ class TableMetadataJSON(Filter):
         json_text = json.dumps(json_data, indent=2)
 
         try:
-            with open(output_path, "w", encoding="utf-8") as f:
+            with open(output_path, "w+", encoding="utf-8") as f:
                 f.write(json_text)
 
             print(f"Wrote metadata JSON: {output_path}")
