@@ -57,7 +57,7 @@ class TableMetadataJSON(Filter):
         super().__init__(
             inputs={
                 "table": [[]],
-                "output_path": "table_metadata.json",
+                "output_path": "~/table_metadata.json",
                 "deduplicate": [False],
             },
             outputs={
